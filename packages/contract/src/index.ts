@@ -1,0 +1,28 @@
+/**
+ * @crito/contract: типы данных между API, админкой и сайтами.
+ *
+ * Пакет содержит только типы и подключается без сборки (`import type`), поэтому рантайм-значений
+ * здесь быть не должно. Описывает формат JSON «по проводу»: даты приходят строками.
+ */
+export type { Grant } from './auth.js'
+export type { ContentBlock, ContentPage, ContentPageMeta } from './content.js'
+export type { ApiErrorBody } from './errors.js'
+export type { ExportFile } from './import.js'
+export type { BlockManifest, JsonSchema, ManifestBlock } from './manifest.js'
+export type { MediaItem } from './media.js'
+export type {
+  CreatePageRequest,
+  PageContent,
+  PageDetail,
+  PageListItem,
+  PageRevisionItem,
+  TrashedPageItem,
+  UpdatePageRequest,
+} from './pages.js'
+export type {
+  CreateProjectRequest,
+  CreateProjectResponse,
+  ProjectSummary,
+  RotateCiKeyResponse,
+  UpdateProjectRequest,
+} from './projects.js'

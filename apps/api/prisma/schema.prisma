@@ -1,0 +1,116 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Сайт, который управляется через CMS (например, rucode).
+model Project {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  defaultLocale    String   @default("ru")
+  /// URL вебхука сайта, который сбрасывает кэш (POST, заголовок x-revalidate-secret).
+  revalidateUrl    String?
+  revalidateSecret String?
+  /// SHA-256 ключа, которым CI публикует манифест блоков.
+  ciKeyHash        String?
+  /// Последний загруженный манифест блоков фронтенда. Хранится текстом, а не JSONB:
+  /// JSONB переставляет ключи, а порядок полей в схеме блоков задаёт порядок полей формы.
+  manifest         String?  @db.Text
+  manifestHash     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  pages Page[]
+  media Media[]
+}
+
+/// Зеркало пользователя LMS. Паролей и ролей в CMS нет: права приходят из LMS.
+model User {
+  id         String   @id @default(cuid())
+  externalId String   @unique
+  email      String
+  name       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  updatedPages Page[]         @relation("PageUpdatedBy")
+  deletedPages Page[]         @relation("PageDeletedBy")
+  revisions    PageRevision[]
+  media        Media[]
+}
+
+/// Страница проекта. Сохранение = публикация: `blocks` это текущее опубликованное содержимое.
+/// Удаление мягкое: страница с `deletedAt` скрыта на сайте и в списках (корзина), история сохраняется.
+/// Адрес остаётся занятым, пока страницу не восстановят или не удалят навсегда.
+model Page {
+  id              String   @id @default(cuid())
+  projectId       String
+  /// Нормализованный путь: "/index" для главной, "/champ", "/news/2026".
+  slug            String
+  version         Int      @default(1)
+  blocks          Json     @default("[]")
+  meta            Json?
+  headerConfig    String?
+  noFooterSpacing Boolean  @default(false)
+  updatedById     String?
+  /// Когда страницу переместили в корзину; null у живых страниц.
+  deletedAt       DateTime?
+  deletedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy User?          @relation("PageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  deletedBy User?          @relation("PageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  revisions PageRevision[]
+
+  @@unique([projectId, slug])
+  @@index([projectId, deletedAt])
+}
+
+/// Снимок страницы на момент каждого сохранения: история и откат.
+model PageRevision {
+  id              String   @id @default(cuid())
+  pageId          String
+  version         Int
+  blocks          Json
+  meta            Json?
+  headerConfig    String?
+  noFooterSpacing Boolean  @default(false)
+  authorId        String?
+  createdAt       DateTime @default(now())
+
+  page   Page  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@unique([pageId, version])
+}
+
+/// Метаданные загруженного файла. Сам файл лежит в хранилище (диск или S3), в БД только ссылка.
+model Media {
+  id           String   @id @default(cuid())
+  projectId    String
+  /// Ключ в хранилище: "<project>/<sha256>.<ext>".
+  key          String
+  sha256       String
+  mime         String
+  size         Int
+  width        Int?
+  height       Int?
+  originalName String
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, sha256])
+  @@unique([projectId, key])
+}

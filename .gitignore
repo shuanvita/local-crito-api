@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.output/
+.nuxt/
+.env
+.env.*
+!.env.example
+uploads/
+coverage/
+*.log
+.idea/
+.DS_Store
+scripts/rucode/pages.json
+*.tsbuildinfo
+# Prisma-клиент генерируется при установке и сборке (prisma generate)
+apps/api/src/generated/
+
+# Локальные настройки Claude Code не коммитим; память проекта (.claude/MEMORY.md, .claude/memory) коммитится
+.claude/
+CLAUDE.md

@@ -1,0 +1,24 @@
+{
+  "name": "crito",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "api": "npm run start:dev -w @crito/api",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "admin": "npm run dev -w @crito/admin",
+    "export:rucode": "node scripts/rucode/export.mjs",
+    "import:pages": "node apps/api/dist/cli/import-pages.main.js",
+    "test": "npm run test -w @crito/api && npm run test -w @crito/admin",
+    "test:e2e": "npm run test:e2e -w @crito/api",
+    "typecheck": "npm run typecheck -w @crito/contract && npm run typecheck -w @crito/api && npm run typecheck -w @crito/admin",
+    "build": "npm run build -w @crito/api && npm run build -w @crito/admin",
+    "db:migrate": "npm run db:migrate -w @crito/api"
+  }
+}
