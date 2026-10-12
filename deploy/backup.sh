@@ -13,7 +13,7 @@ DATE="$(date +%F)"
 
 set -a
 # shellcheck disable=SC1091
-. /etc/crito/api.env
+. "${CRITO_ENV_DIR:-/etc/crito}/api.env"
 set +a
 
 mkdir -p "$BACKUP_DIR"

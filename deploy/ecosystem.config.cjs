@@ -6,7 +6,9 @@ const { parseEnv } = require('node:util')
 const NODE = process.env.CRITO_NODE || '/home/anvshurygin/.nvm/versions/node/v24.21.0/bin/node'
 const ROOT = process.env.CRITO_ROOT || '/var/www/crito'
 
-const readEnv = (file) => parseEnv(readFileSync(file, 'utf8'))
+const ENV_DIR = process.env.CRITO_ENV_DIR || '/etc/crito'
+
+const readEnv = (name) => parseEnv(readFileSync(`${ENV_DIR}/${name}`, 'utf8'))
 
 module.exports = {
   apps: [
@@ -20,7 +22,7 @@ module.exports = {
       instances: 1,
       max_memory_restart: '512M',
       env: {
-        ...readEnv('/etc/crito/api.env'),
+        ...readEnv('api.env'),
         NODE_ENV: 'production',
         PORT: '3200',
         HOST: '127.0.0.1',
@@ -34,7 +36,7 @@ module.exports = {
       exec_mode: 'fork',
       instances: 1,
       env: {
-        ...readEnv('/etc/crito/admin.env'),
+        ...readEnv('admin.env'),
         NODE_ENV: 'production',
         NITRO_HOST: '127.0.0.1',
         NITRO_PORT: '3100',

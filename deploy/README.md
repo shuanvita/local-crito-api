@@ -137,6 +137,13 @@ rm /tmp/pages.json
 ## 8. Обновления и бэкапы
 
 - **GitHub Actions** (`.github/workflows/deploy.yml`): на push в `main` прогоняет типы, тесты и e2e, затем по ssh запускает `deploy/deploy.sh`. Секреты репозитория crito-api: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`.
+- **Каталоги в домашнем каталоге** (код `~/crito`, секреты `~/crito-env`, загрузки `~/crito-data`): пути задаются переменными `CRITO_ROOT`, `CRITO_ENV_DIR`, `CRITO_NODE`, `CRITO_PM2`. Workflow передаёт их сам; при ручном запуске: `CRITO_ROOT=~/crito CRITO_ENV_DIR=~/crito-env bash ~/crito/deploy/deploy.sh`.
+- **Если код скопирован без `.git`** (один раз, на сервере; ключ только на чтение из GitHub Deploy keys):
+  ```bash
+  cd ~/crito
+  git init -b main && git remote add origin git@github.com:Voloskovae/crito-api.git
+  git fetch origin main && git reset --hard origin/main   # перезапишет отслеживаемые файлы; node_modules, dist, .output не тронет
+  ```
 - **Бэкап:** `crontab -e` → `17 3 * * * bash /var/www/crito/deploy/backup.sh >> /var/log/crito-backup.log 2>&1`. Копии на том же сервере, периодически забирайте `/var/backups/crito` на другую машину.
 - **Перед обновлением с миграциями** запустите `bash deploy/backup.sh` вручную.
 - **Откат кода:** `git reset --hard <коммит>` в `/var/www/crito` и `bash deploy/deploy.sh` с `CRITO_BRANCH`, указывающим на нужную ветку; миграции назад не откатываются, восстановление только из дампа.

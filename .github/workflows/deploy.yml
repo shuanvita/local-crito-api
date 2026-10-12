@@ -47,5 +47,10 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-            export PATH="/home/${{ secrets.SSH_USER }}/.nvm/versions/node/v24.21.0/bin:$PATH"
-            bash /var/www/crito/deploy/deploy.sh
+            home="/home/${{ secrets.SSH_USER }}"
+            export PATH="$home/.nvm/versions/node/v24.21.0/bin:$PATH"
+            # Код и секреты лежат в домашнем каталоге пользователя деплоя, не в /var/www и /etc.
+            export CRITO_ROOT="$home/crito"
+            export CRITO_ENV_DIR="$home/crito-env"
+            export CRITO_NODE="$home/.nvm/versions/node/v24.21.0/bin/node"
+            bash "$CRITO_ROOT/deploy/deploy.sh"
