@@ -1,4 +1,4 @@
-import type { ContentPage } from '@crito/contract';
+import type { ContentPage, PublicRegion } from '@crito/contract';
 import { Controller, Get, Header, NotFoundException, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/public.decorator.js';
@@ -15,6 +15,22 @@ import { tryNormalizeSlug } from '../common/slug.js';
 @Controller('public/:project')
 export class PublicController {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Справочник регионов: массив `{ value, label }` в порядке, заданном в админке. Кэш как у страниц.
+   * Неизвестный проект это 404 (как и у страниц); у проекта без регионов ответ `[]`.
+   */
+  @Header('Cache-Control', 'public, no-cache')
+  @Get('dictionaries/regions')
+  async getRegions(@Param('project') project: string): Promise<PublicRegion[]> {
+    const found = await this.prisma.project.findUnique({ where: { slug: project }, select: { id: true } });
+    if (!found) throw new NotFoundException('Проект не найден');
+    return this.prisma.region.findMany({
+      where: { projectId: found.id },
+      select: { value: true, label: true },
+      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+    });
+  }
 
   // no-cache: кэши могут хранить ответ, но каждый раз сверяют ETag, поэтому публикация видна сразу.
   @Header('Cache-Control', 'public, no-cache')

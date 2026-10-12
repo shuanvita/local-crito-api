@@ -8,5 +8,6 @@ import { RevalidateService } from './revalidate.service.js';
   imports: [ManifestModule],
   controllers: [PagesController],
   providers: [PagesService, RevalidateService],
+  exports: [RevalidateService],
 })
 export class PagesModule {}

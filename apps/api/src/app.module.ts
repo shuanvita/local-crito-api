@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
 import { AuthModule } from './auth/auth.module.js';
 import { CommonModule } from './common/common.module.js';
+import { DictionariesModule } from './dictionaries/dictionaries.module.js';
 import { HealthController } from './health/health.controller.js';
 import { validateEnvironment } from './config/env.js';
 import { MediaModule } from './media/media.module.js';
@@ -26,6 +27,7 @@ import { PublicController } from './public/public.controller.js';
     ProjectsModule,
     ManifestModule,
     PagesModule,
+    DictionariesModule,
     MediaModule,
   ],
   controllers: [PublicController, HealthController],

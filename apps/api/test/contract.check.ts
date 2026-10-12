@@ -15,9 +15,11 @@ import type {
   PageListItem,
   PageRevisionItem,
   ProjectSummary,
+  RegionItem,
   RotateCiKeyResponse,
   TrashedPageItem,
 } from '@crito/contract';
+import type { DictionariesService } from '../src/dictionaries/dictionaries.service.js';
 import type { ManifestService } from '../src/manifest/manifest.service.js';
 import type { MediaService } from '../src/media/media.service.js';
 import type { PagesService } from '../src/pages/pages.service.js';
@@ -55,6 +57,10 @@ export type ContractChecks = [
   Expect<Extends<WithoutJson<Wire<ReturnType<PagesService['listTrash']>>[number]>, WithoutJson<TrashedPageItem>>>,
   Expect<Extends<WithoutJson<Wire<ReturnType<PagesService['restoreFromTrash']>>>, WithoutJson<PageDetail>>>,
   Expect<Extends<Wire<ReturnType<PagesService['revisions']>>, PageRevisionItem[]>>,
+  // справочники
+  Expect<Extends<Wire<ReturnType<DictionariesService['listRegions']>>, RegionItem[]>>,
+  Expect<Extends<Wire<ReturnType<DictionariesService['createRegion']>>, RegionItem>>,
+  Expect<Extends<Wire<ReturnType<DictionariesService['updateRegion']>>, RegionItem>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)
   Expect<Extends<Awaited<ReturnType<ManifestService['get']>>, BlockManifest | null>>,
 ];

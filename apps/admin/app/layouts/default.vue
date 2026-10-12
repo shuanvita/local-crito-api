@@ -3,6 +3,7 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 const open = ref(false)
 const slug = useCurrentProjectSlug()
+const route = useRoute()
 
 const links = computed<NavigationMenuItem[][]>(() => [[
   {
@@ -23,6 +24,17 @@ const links = computed<NavigationMenuItem[][]>(() => [[
         icon: 'i-lucide-image',
         to: `/${slug.value}/media`,
         onSelect: () => { open.value = false }
+      }, {
+        label: 'Справочники',
+        icon: 'i-lucide-library',
+        // Раскрыт, пока открыт один из справочников; пункт сам никуда не ведёт.
+        defaultOpen: route.path.startsWith(`/${slug.value}/dictionaries`),
+        children: DICTIONARIES.map(dictionary => ({
+          label: dictionary.label,
+          icon: dictionary.icon,
+          to: `/${slug.value}/dictionaries/${dictionary.key}`,
+          onSelect: () => { open.value = false }
+        }))
       }]
     : [])
 ]])

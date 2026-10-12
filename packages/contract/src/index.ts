@@ -6,6 +6,7 @@
  */
 export type { Grant } from './auth.js'
 export type { ContentBlock, ContentPage, ContentPageMeta } from './content.js'
+export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest } from './dictionaries.js'
 export type { ApiErrorBody } from './errors.js'
 export type { ExportFile } from './import.js'
 export type { BlockManifest, JsonSchema, ManifestBlock } from './manifest.js'

@@ -27,8 +27,9 @@ model Project {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  pages Page[]
-  media Media[]
+  pages   Page[]
+  media   Media[]
+  regions Region[]
 }
 
 /// Зеркало пользователя LMS. Паролей и ролей в CMS нет: права приходят из LMS.
@@ -113,4 +114,23 @@ model Media {
 
   @@unique([projectId, sha256])
   @@unique([projectId, key])
+}
+
+/// Справочник «Регионы» проекта. Отдаётся сайту публично (`/public/:project/dictionaries/regions`).
+/// Удаление окончательное: версий и корзины у справочников нет.
+model Region {
+  id        String   @id @default(cuid())
+  projectId String
+  /// Идентификатор региона во внешней системе (форма участия): сайт отправляет его как есть.
+  value     Int
+  label     String
+  /// Порядок в списке: порядок регионов не алфавитный, его задаёт редактор.
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, value])
+  @@index([projectId, sortOrder])
 }
