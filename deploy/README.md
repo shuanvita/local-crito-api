@@ -34,8 +34,8 @@ sudo mkdir -p /etc/crito /var/lib/crito/uploads /var/www/crito /var/backups/crit
 sudo chown -R "$USER": /etc/crito /var/lib/crito /var/www/crito /var/backups/crito
 chmod 700 /etc/crito
 
-# Код (приватный репозиторий: нужен deploy key только на чтение)
-git clone git@github.com:Voloskovae/crito-api.git /var/www/crito
+# Код доставляет GitHub Actions (rsync по ssh), git на сервере не нужен.
+# Для первого запуска без Actions скопируйте репозиторий в /var/www/crito любым способом (scp, rsync, git clone).
 ```
 
 `/etc/crito/api.env` (`chmod 600`; **вне репозитория**, значения сгенерируйте сами):
@@ -136,17 +136,13 @@ rm /tmp/pages.json
 
 ## 8. Обновления и бэкапы
 
-- **GitHub Actions** (`.github/workflows/deploy.yml`): на push в `main` прогоняет типы, тесты и e2e, затем по ssh запускает `deploy/deploy.sh`. Секреты репозитория crito-api: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`.
+- **GitHub Actions** (`.github/workflows/deploy.yml`): на push в `main` прогоняет типы, тесты и e2e, затем копирует файлы на сервер через `rsync --delete` и по ssh запускает `deploy/deploy.sh` (зависимости, сборка, миграции, pm2). Серверу доступ к GitHub не нужен. Секреты репозитория crito-api: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`; необязательный `SSH_KNOWN_HOSTS` (вывод `ssh-keyscan -p <порт> <хост>`) закрепляет отпечаток сервера. На сервере нужен `rsync`.
+- **Что rsync не трогает:** `node_modules`, `dist`, `.output`, `.nuxt`, `apps/api/src/generated`, `*.tsbuildinfo`, `.env*`. Всё остальное в `~/crito`, чего нет в репозитории, удаляется (`--delete`): не храните там свои файлы.
+- **Пробный запуск:** Actions → Deploy CMS → Run workflow с галочкой `dry_run`: в логе будет список файлов, которые изменятся, ничего не копируется и не перезапускается.
 - **Каталоги в домашнем каталоге** (код `~/crito`, секреты `~/crito-env`, загрузки `~/crito-data`): пути задаются переменными `CRITO_ROOT`, `CRITO_ENV_DIR`, `CRITO_NODE`, `CRITO_PM2`. Workflow передаёт их сам; при ручном запуске: `CRITO_ROOT=~/crito CRITO_ENV_DIR=~/crito-env bash ~/crito/deploy/deploy.sh`.
-- **Если код скопирован без `.git`** (один раз, на сервере; ключ только на чтение из GitHub Deploy keys):
-  ```bash
-  cd ~/crito
-  git init -b main && git remote add origin git@github.com:Voloskovae/crito-api.git
-  git fetch origin main && git reset --hard origin/main   # перезапишет отслеживаемые файлы; node_modules, dist, .output не тронет
-  ```
 - **Бэкап:** `crontab -e` → `17 3 * * * bash /var/www/crito/deploy/backup.sh >> /var/log/crito-backup.log 2>&1`. Копии на том же сервере, периодически забирайте `/var/backups/crito` на другую машину.
 - **Перед обновлением с миграциями** запустите `bash deploy/backup.sh` вручную.
-- **Откат кода:** `git reset --hard <коммит>` в `/var/www/crito` и `bash deploy/deploy.sh` с `CRITO_BRANCH`, указывающим на нужную ветку; миграции назад не откатываются, восстановление только из дампа.
+- **Откат кода:** `git revert` проблемного коммита и push в `main` (Actions доставит прежний код) или Run workflow на ветке или теге с нужным кодом; миграции назад не откатываются, восстановление только из дампа.
 
 ## Что дальше
 

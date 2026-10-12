@@ -1,26 +1,23 @@
 #!/usr/bin/env bash
-# Обновление CMS на сервере: код, зависимости, сборка, миграции, перезапуск.
+# Обновление CMS на сервере: зависимости, сборка, миграции, перезапуск (код доставляется отдельно).
 # Запускается из GitHub Actions по ssh (см. .github/workflows/deploy.yml) или вручную: bash deploy/deploy.sh
 #
 # Перед миграциями нужен свежий бэкап БД (deploy/backup.sh): миграции иногда меняют типы колонок.
 set -euo pipefail
 
-# Всё в функции: `git reset` ниже подменяет этот файл, а bash читает скрипт по частям.
+# Всё в функции: rsync может заменить этот файл на лету, а bash читает скрипт по частям.
 main() {
   local root="${CRITO_ROOT:-/var/www/crito}"
-  local branch="${CRITO_BRANCH:-main}"
   local pm2="${CRITO_PM2:-/usr/local/bin/pm2}"
   # Каталог с api.env и admin.env; ecosystem.config.cjs читает ту же переменную.
   export CRITO_ENV_DIR="${CRITO_ENV_DIR:-/etc/crito}"
 
+  # Код сюда уже доставлен (rsync из GitHub Actions или вручную): git на сервере не нужен.
   cd "$root"
-  # Каталог мог быть скопирован без .git: reset --hard в чужом репозитории выше по дереву стёр бы лишнее.
-  if [ "$(git rev-parse --show-toplevel 2>/dev/null)" != "$(pwd -P)" ]; then
-    echo "$root не является корнем git-репозитория; подготовьте его (см. deploy/README.md, раздел 8)" >&2
+  if [ ! -f package-lock.json ] || [ ! -d deploy ]; then
+    echo "$root не похож на каталог CMS (нет package-lock.json или deploy/)" >&2
     return 1
   fi
-  git fetch --quiet origin "$branch"
-  git reset --hard "origin/$branch"
 
   npm ci
 

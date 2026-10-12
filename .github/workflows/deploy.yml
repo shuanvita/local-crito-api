@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Только показать, какие файлы изменятся на сервере (без копирования и перезапуска)'
+        type: boolean
+        default: false
 
 jobs:
   check:
@@ -37,20 +42,62 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-latest
+    # Два деплоя одновременно перемешали бы файлы на сервере: новый ждёт окончания текущего.
+    concurrency:
+      group: deploy-crito
+      cancel-in-progress: false
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
     steps:
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
-            set -e
-            home="/home/${{ secrets.SSH_USER }}"
-            export PATH="$home/.nvm/versions/node/v24.21.0/bin:$PATH"
-            # Код и секреты лежат в домашнем каталоге пользователя деплоя, не в /var/www и /etc.
-            export CRITO_ROOT="$home/crito"
-            export CRITO_ENV_DIR="$home/crito-env"
-            export CRITO_NODE="$home/.nvm/versions/node/v24.21.0/bin/node"
-            bash "$CRITO_ROOT/deploy/deploy.sh"
+      - uses: actions/checkout@v7
+
+      - name: Настроить ssh
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Необязательный секрет: вывод `ssh-keyscan -p <порт> <хост>` с вашей машины. Без него
+          # отпечаток сервера берётся при первом подключении (защита от подмены слабее).
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          # \r на случай, если ключ вставили в секрет из Windows
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${SSH_PORT:-22}" "$SSH_HOST" > ~/.ssh/known_hosts
+          fi
+
+      - name: Скопировать файлы на сервер
+        run: |
+          set -euo pipefail
+          dry=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then dry="--dry-run"; fi
+          # --delete убирает с сервера файлы, удалённые из репозитория. Исключения (в том числе от --delete):
+          # сборка и зависимости, которые живут только на сервере, и локальные .env.
+          rsync -az --delete --itemize-changes $dry \
+            --exclude='.git/' --exclude='.github/' \
+            --exclude='node_modules/' --exclude='dist/' --exclude='.output/' --exclude='.nuxt/' \
+            --exclude='apps/api/src/generated/' --exclude='*.tsbuildinfo' \
+            --exclude='.env' --exclude='.env.*' \
+            -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
+            ./ "$SSH_USER@$SSH_HOST:/home/$SSH_USER/crito/"
+
+      - name: Собрать и перезапустить на сервере
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/deploy_key" -p "${SSH_PORT:-22}" -o IdentitiesOnly=yes \
+            "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          node_bin="$HOME/.nvm/versions/node/v24.21.0/bin"
+          export PATH="$node_bin:$PATH"
+          # Код и секреты лежат в домашнем каталоге пользователя деплоя, не в /var/www и /etc.
+          export CRITO_ROOT="$HOME/crito"
+          export CRITO_ENV_DIR="$HOME/crito-env"
+          export CRITO_NODE="$node_bin/node"
+          bash "$CRITO_ROOT/deploy/deploy.sh"
+          REMOTE
