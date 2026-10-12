@@ -1,0 +1,2 @@
+# Скрипты запускаются на Linux-сервере: CRLF ломает bash («set: pipefail: invalid option name»).
+*.sh text eol=lf

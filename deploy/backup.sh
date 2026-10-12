@@ -20,7 +20,9 @@ mkdir -p "$BACKUP_DIR"
 umask 077
 
 # Дамп пишется во временный файл и переименовывается: оборванный бэкап не подменяет хороший.
-pg_dump --format=custom --file "$BACKUP_DIR/crito-$DATE.dump.tmp" "${DATABASE_URL%%\?*}"
+# pg_dump не знает параметр Prisma `schema=`, но нужен `sslmode=` (Neon без SSL не пускает): убираем только schema.
+PG_URL="$(printf '%s' "$DATABASE_URL" | sed -E 's/([?&])schema=[^&]*&?/\1/; s/[?&]$//')"
+pg_dump --format=custom --file "$BACKUP_DIR/crito-$DATE.dump.tmp" "$PG_URL"
 mv "$BACKUP_DIR/crito-$DATE.dump.tmp" "$BACKUP_DIR/crito-$DATE.dump"
 
 if [ -d "${STORAGE_LOCAL_DIR:-}" ]; then
