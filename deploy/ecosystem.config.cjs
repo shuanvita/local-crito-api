@@ -41,7 +41,7 @@ module.exports = {
         NITRO_HOST: '127.0.0.1',
         NITRO_PORT: '3100',
         NUXT_API_URL: 'http://127.0.0.1:3200',
-        NUXT_APP_BASE_URL: '/admin/',
+        NUXT_APP_BASE_URL: process.env.CRITO_ADMIN_BASE || '/admin/',
       },
     },
   ],

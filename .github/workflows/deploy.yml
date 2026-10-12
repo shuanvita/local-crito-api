@@ -99,5 +99,7 @@ jobs:
           export CRITO_ROOT="$HOME/crito"
           export CRITO_ENV_DIR="$HOME/crito-env"
           export CRITO_NODE="$node_bin/node"
+          # Под этим префиксом админка проксируется в боевом nginx (https://nuxt.rucode.net/cms-admin/).
+          export CRITO_ADMIN_BASE="/cms-admin/"
           bash "$CRITO_ROOT/deploy/deploy.sh"
           REMOTE

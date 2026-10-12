@@ -21,8 +21,10 @@ main() {
 
   npm ci
 
-  # Админка живёт под /admin: префикс влияет на адреса ассетов, поэтому задаётся при сборке.
-  NUXT_APP_BASE_URL=/admin/ npm run build
+  # Админка живёт под префиксом (по умолчанию /admin/, на боевом сервере /cms-admin/): он влияет на адреса
+  # ассетов, поэтому задаётся при сборке. ecosystem.config.cjs читает ту же переменную для запуска.
+  export CRITO_ADMIN_BASE="${CRITO_ADMIN_BASE:-/admin/}"
+  NUXT_APP_BASE_URL="$CRITO_ADMIN_BASE" npm run build
 
   # Миграциям нужен DATABASE_URL из окружения API.
   set -a
