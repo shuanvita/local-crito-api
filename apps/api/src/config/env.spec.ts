@@ -52,6 +52,17 @@ describe('validateEnvironment', () => {
     expect(() => validateEnvironment({ ...good, [name]: value })).toThrow(name);
   });
 
+  it('ADMIN_TOKEN необязателен, но слабый токен отклоняется в любом режиме', () => {
+    expect(() => validateEnvironment({ ...good, ADMIN_TOKEN: 'a'.repeat(32) })).not.toThrow();
+    expect(() => validateEnvironment({ ...good, ADMIN_TOKEN: '' })).not.toThrow();
+    for (const weak of ['short', 'change-me', 'a'.repeat(31)]) {
+      expect(() => validateEnvironment({ ...good, ADMIN_TOKEN: weak })).toThrow('ADMIN_TOKEN');
+      expect(() => validateEnvironment({ NODE_ENV: 'development', DATABASE_URL: 'x', ADMIN_TOKEN: weak })).toThrow(
+        'ADMIN_TOKEN',
+      );
+    }
+  });
+
   it('перечисляет все проблемы сразу и подсказывает, как включить разработку', () => {
     try {
       validateEnvironment({ DATABASE_URL: 'x', AUTH_DEV_BYPASS: 'true' });

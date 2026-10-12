@@ -16,6 +16,9 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  // HOST=127.0.0.1 на проде: API доступен только локальному прокси и nginx, а не напрямую из сети.
+  const port = Number(process.env.PORT ?? 3000);
+  if (process.env.HOST) await app.listen(port, process.env.HOST);
+  else await app.listen(port);
 }
 await bootstrap();

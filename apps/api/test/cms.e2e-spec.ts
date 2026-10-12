@@ -113,6 +113,18 @@ describe('авторизация: всё закрыто по умолчанию'
     await http.get('/public/rucode/pages/index').expect(404);
     await http.get('/media/rucode/nothing.png').expect(404);
   });
+
+  it('служебный ADMIN_TOKEN открывает админские методы как суперадмина', async () => {
+    await http.get('/projects', process.env.ADMIN_TOKEN).expect(200);
+  });
+
+  it.each([
+    ['пустой префикс', process.env.ADMIN_TOKEN!.slice(0, -1)],
+    ['с лишним символом', `${process.env.ADMIN_TOKEN}x`],
+    ['другая длина', 'x'],
+  ])('токен, не равный ADMIN_TOKEN (%s), даёт 401', async (_name, token) => {
+    await http.get('/projects', token).expect(401);
+  });
 });
 
 describe('проекты и шифрование секрета', () => {

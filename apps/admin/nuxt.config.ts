@@ -13,6 +13,8 @@ export default defineNuxtConfig({
     // Адрес API для серверного прокси (server/routes/cms-api). Читается при запуске, а не при сборке:
     // одна сборка работает в любом окружении, адрес задаётся переменной NUXT_API_URL.
     apiUrl: 'http://localhost:3000',
+    // Служебный токен API (NUXT_ADMIN_TOKEN, = ADMIN_TOKEN API). Только серверная часть: в браузер не попадает.
+    adminToken: '',
     public: {
       // Префикс, под которым браузер обращается к API (на том же origin: нет CORS и cookie между доменами).
       apiBase: '/cms-api'

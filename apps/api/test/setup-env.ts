@@ -12,6 +12,7 @@ process.env.AUTH_DEV_BYPASS = 'false';
 process.env.SESSION_SECRET = 'e2e-session-secret-not-for-production';
 process.env.SECRETS_KEY = Buffer.alloc(32, 7).toString('base64');
 process.env.PUBLIC_BASE_URL = 'http://api.test';
+process.env.ADMIN_TOKEN = 'e2e-admin-token-not-for-production-0123456789';
 process.env.STORAGE_DRIVER = 'local';
 process.env.STORAGE_LOCAL_DIR = mkdtempSync(join(tmpdir(), 'crito-e2e-media-'));
 process.env.NODE_ENV = 'test';

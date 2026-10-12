@@ -5,10 +5,12 @@ import type { ApiErrorBody } from '@crito/contract'
  * 401 означает, что сессии нет: вход возможен только через LMS (подключим в конце).
  */
 export function useApi() {
-  const { apiBase } = useRuntimeConfig().public
+  const config = useRuntimeConfig()
+  // Админка может жить под префиксом (/admin): прокси лежит рядом с ней, а не в корне домена.
+  const base = config.app.baseURL.replace(/\/+$/, '')
 
   return $fetch.create({
-    baseURL: apiBase,
+    baseURL: `${base}${config.public.apiBase}`,
     onResponseError({ response }) {
       if (response.status === 401) {
         navigateTo('/no-access')

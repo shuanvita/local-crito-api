@@ -2,6 +2,7 @@ import { parseSecretsKey } from '../common/secret-box.js';
 import { isDevelopmentEnv } from './runtime.js';
 
 const MIN_SESSION_SECRET_LENGTH = 32;
+const MIN_ADMIN_TOKEN_LENGTH = 32;
 
 /**
  * Проверка конфигурации при старте (подключена в `ConfigModule`). Приложение не запускается
@@ -13,6 +14,12 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   const errors: string[] = [];
 
   if (!text('DATABASE_URL')) errors.push('DATABASE_URL не задан');
+
+  // Слабый служебный токен хуже, чем его отсутствие, поэтому длину проверяем в любом режиме.
+  const adminToken = text('ADMIN_TOKEN');
+  if (adminToken && (adminToken.length < MIN_ADMIN_TOKEN_LENGTH || adminToken === 'change-me')) {
+    errors.push(`ADMIN_TOKEN должен быть не короче ${MIN_ADMIN_TOKEN_LENGTH} символов или не задан`);
+  }
 
   if (!development) {
     if (text('AUTH_DEV_BYPASS') === 'true') {

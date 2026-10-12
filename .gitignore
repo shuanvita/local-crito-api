@@ -15,6 +15,5 @@ scripts/rucode/pages.json
 # Prisma-клиент генерируется при установке и сборке (prisma generate)
 apps/api/src/generated/
 
-# Локальные настройки Claude Code не коммитим; память проекта (.claude/MEMORY.md, .claude/memory) коммитится
 .claude/
 CLAUDE.md
