@@ -236,7 +236,7 @@ async function confirmAction() {
           variant="link"
           size="sm"
           class="w-auto"
-          :ui="{ list: 'w-auto' }"
+          :ui="{ list: 'w-auto', trigger: 'cursor-pointer' }"
         />
         <span v-else />
 
@@ -279,7 +279,7 @@ async function confirmAction() {
                   variant="ghost"
                   size="sm"
                   aria-label="Открыть страницу на сайте"
-                  class="hover:text-primary"
+                  class="cursor-pointer hover:text-primary"
                   @click.stop
                 />
               </UTooltip>
@@ -290,7 +290,7 @@ async function confirmAction() {
                   variant="ghost"
                   size="sm"
                   aria-label="Переместить в корзину"
-                  class="hover:bg-error/10 hover:text-error"
+                  class="cursor-pointer hover:bg-error/10 hover:text-error"
                   @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
                 />
               </UTooltip>
@@ -309,16 +309,23 @@ async function confirmAction() {
         <p class="mb-3 text-sm text-muted">
           Удалённые страницы не показываются на сайте, но хранятся вместе с историей. Адрес остаётся занятым, пока страницу не восстановят или не удалят навсегда.
         </p>
-        <UTable :data="trashRows" :columns="trashColumns" :loading="trashStatus === 'pending'" class="shrink-0">
+        <UTable
+          :data="trashRows"
+          :columns="trashColumns"
+          :loading="trashStatus === 'pending'"
+          class="shrink-0"
+          :ui="{ tr: 'group hover:bg-elevated transition-colors', td: 'py-3' }"
+        >
           <template #actions-cell="{ row }">
             <div class="flex justify-end gap-1">
-              <UButton label="Восстановить" icon="i-lucide-undo-2" size="xs" color="neutral" variant="subtle" @click="restore(row.original)" />
+              <UButton label="Восстановить" icon="i-lucide-undo-2" size="xs" color="neutral" variant="subtle" class="cursor-pointer" @click="restore(row.original)" />
               <UButton
                 icon="i-lucide-trash"
                 size="xs"
                 color="error"
                 variant="ghost"
                 aria-label="Удалить навсегда"
+                class="cursor-pointer hover:bg-error/10"
                 @click="pending = { kind: 'purge', slug: row.original.slug, id: row.original.id }"
               />
             </div>
