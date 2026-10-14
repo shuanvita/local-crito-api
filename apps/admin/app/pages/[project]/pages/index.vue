@@ -58,18 +58,73 @@ const trashRows = computed(() => matches(trash.value))
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
 const formatDate = (value: string) => dateFormat.format(new Date(value))
 
+// «2 дня назад» читается быстрее даты; полная дата остаётся в подсказке.
+const relativeFormat = new Intl.RelativeTimeFormat('ru-RU', { numeric: 'auto' })
+const relativeUnits: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 31_536_000], ['month', 2_592_000], ['day', 86_400], ['hour', 3_600], ['minute', 60]
+]
+function formatRelative(value: string) {
+  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000)
+  for (const [unit, size] of relativeUnits) {
+    if (Math.abs(seconds) >= size) return relativeFormat.format(Math.round(seconds / size), unit)
+  }
+  return 'только что'
+}
+
+const UButtonComponent = resolveComponent('UButton')
+const UBadgeComponent = resolveComponent('UBadge')
+
+const sorting = ref([{ id: 'updatedAt', desc: true }])
+
+function sortableHeader(label: string) {
+  return ({ column }: { column: { getIsSorted: () => false | 'asc' | 'desc', toggleSorting: (desc?: boolean) => void } }) => {
+    const sorted = column.getIsSorted()
+    return h(UButtonComponent, {
+      color: 'neutral',
+      variant: 'ghost',
+      label,
+      size: 'sm',
+      class: '-mx-2.5 font-medium',
+      trailingIcon: sorted === 'asc' ? 'i-lucide-arrow-up' : sorted === 'desc' ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up-down',
+      onClick: () => column.toggleSorting(sorted === 'asc')
+    })
+  }
+}
+
+// Заголовок главный, адрес под ним: страницу узнают по названию, а не по пути.
+const titleCell = (item: PageListItem) => h('div', { class: 'min-w-0' }, [
+  h('p', { class: 'truncate font-medium text-highlighted' }, item.meta?.title || 'Без заголовка'),
+  h('p', { class: 'truncate font-mono text-xs text-muted' }, item.slug)
+])
+
 const pageColumns = computed<TableColumn<PageListItem>[]>(() => [
-  { accessorKey: 'slug', header: 'Адрес' },
-  { id: 'title', header: 'Заголовок', cell: ({ row }) => row.original.meta?.title ?? '—' },
-  { accessorKey: 'version', header: 'Версия' },
-  { accessorKey: 'updatedAt', header: 'Изменена', cell: ({ row }) => formatDate(row.original.updatedAt) },
+  {
+    id: 'title',
+    accessorFn: row => (row.meta?.title ?? row.slug).toLowerCase(),
+    header: sortableHeader('Страница'),
+    cell: ({ row }) => titleCell(row.original)
+  },
+  {
+    accessorKey: 'version',
+    header: sortableHeader('Версия'),
+    cell: ({ row }) => h(UBadgeComponent, { color: 'neutral', variant: 'subtle', size: 'sm', label: `v${row.original.version}` })
+  },
+  {
+    accessorKey: 'updatedAt',
+    header: sortableHeader('Изменена'),
+    cell: ({ row }) => h('span', { class: 'text-sm text-toned', title: formatDate(row.original.updatedAt) }, formatRelative(row.original.updatedAt))
+  },
   ...(fullAccess.value ? [{ id: 'actions', header: '' }] : [])
 ])
 
 const trashColumns: TableColumn<TrashedPageItem>[] = [
-  { accessorKey: 'slug', header: 'Адрес' },
-  { id: 'title', header: 'Заголовок', cell: ({ row }) => row.original.meta?.title ?? '—' },
-  { id: 'deleted', header: 'Удалена', cell: ({ row }) => `${formatDate(row.original.deletedAt)} · ${row.original.deletedBy?.name ?? row.original.deletedBy?.email ?? 'неизвестно'}` },
+  { id: 'title', header: 'Страница', cell: ({ row }) => titleCell(row.original) },
+  {
+    id: 'deleted',
+    header: 'Удалена',
+    cell: ({ row }) => h('span', { class: 'text-sm text-toned', title: formatDate(row.original.deletedAt) },
+      `${formatRelative(row.original.deletedAt)} · ${row.original.deletedBy?.name ?? row.original.deletedBy?.email ?? 'неизвестно'}`)
+  },
   { id: 'actions', header: '' }
 ]
 
@@ -130,7 +185,7 @@ async function confirmAction() {
 <template>
   <UDashboardPanel id="pages">
     <template #header>
-      <UDashboardNavbar :title="current ? `Страницы · ${current.name}` : 'Страницы'">
+      <UDashboardNavbar title="Страницы">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -157,28 +212,35 @@ async function confirmAction() {
         class="mb-4"
       />
 
-      <UTabs
-        v-if="fullAccess"
-        v-model="view"
-        :items="tabs"
-        :content="false"
-        size="sm"
-        class="mb-4 max-w-sm"
-      />
+      <!-- вкладки слева, поиск и обновление справа: один ряд вместо трёх -->
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <UTabs
+          v-if="fullAccess"
+          v-model="view"
+          :items="tabs"
+          :content="false"
+          variant="link"
+          size="sm"
+          class="w-auto"
+          :ui="{ list: 'w-auto' }"
+        />
+        <span v-else />
 
-      <div class="mb-4 flex items-center gap-2">
-        <UInput v-model="search" icon="i-lucide-search" placeholder="Поиск по адресу или заголовку" class="max-w-sm flex-1" />
-        <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" aria-label="Обновить" @click="reloadLists()" />
+        <div class="flex items-center gap-1">
+          <UInput v-model="search" icon="i-lucide-search" placeholder="Поиск по адресу или заголовку" class="w-72" />
+          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" aria-label="Обновить" @click="reloadLists()" />
+        </div>
       </div>
 
       <!-- страницы -->
       <UTable
         v-if="view === 'pages'"
+        v-model:sorting="sorting"
         :data="pageRows"
         :columns="pageColumns"
         :loading="status === 'pending'"
         class="shrink-0"
-        :ui="{ tr: 'cursor-pointer' }"
+        :ui="{ tr: 'group cursor-pointer hover:bg-elevated/50 transition-colors', td: 'py-3' }"
         @select="openPage"
       >
         <template #actions-cell="{ row }">
@@ -189,13 +251,14 @@ async function confirmAction() {
               variant="ghost"
               size="sm"
               aria-label="Переместить в корзину"
+              class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
               @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
             />
           </div>
         </template>
         <template #empty>
           <p class="py-6 text-center text-muted">
-            Страниц пока нет
+            {{ search.trim() ? `Ничего не найдено по «${search.trim()}»` : 'Страниц пока нет' }}
           </p>
         </template>
       </UTable>
