@@ -119,6 +119,7 @@ const pageColumns = computed<TableColumn<PageListItem>[]>(() => [
     header: sortableHeader('Страница'),
     cell: ({ row }) => titleCell(row.original)
   },
+  { id: 'actions', header: 'Действия' },
   {
     accessorKey: 'version',
     header: sortableHeader('Версия'),
@@ -257,44 +258,33 @@ async function confirmAction() {
         :ui="{ tr: 'group cursor-pointer hover:bg-elevated transition-colors', td: 'py-3' }"
         @select="openPage"
       >
-        <!-- действия рядом с названием: взгляд уже там, а не на другом краю таблицы -->
-        <template #title-cell="{ row }">
-          <div class="flex items-center gap-2">
-            <div class="min-w-0">
-              <p class="truncate font-medium text-highlighted transition-colors group-hover:text-primary">
-                {{ row.original.meta?.title || NO_TITLE }}
-              </p>
-              <p class="truncate font-mono text-xs text-muted">
-                {{ row.original.slug }}
-              </p>
-            </div>
-            <div class="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-              <UTooltip v-if="siteUrl(row.original.slug)" text="Открыть на сайте">
-                <UButton
-                  :to="siteUrl(row.original.slug)!"
-                  target="_blank"
-                  rel="noopener"
-                  icon="i-lucide-external-link"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Открыть страницу на сайте"
-                  class="cursor-pointer hover:text-primary"
-                  @click.stop
-                />
-              </UTooltip>
-              <UTooltip v-if="fullAccess" text="В корзину">
-                <UButton
-                  icon="i-lucide-trash-2"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Переместить в корзину"
-                  class="cursor-pointer hover:bg-error/10 hover:text-error"
-                  @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
-                />
-              </UTooltip>
-            </div>
+        <template #actions-cell="{ row }">
+          <div class="flex gap-0.5">
+            <UTooltip v-if="siteUrl(row.original.slug)" text="Открыть на сайте">
+              <UButton
+                :to="siteUrl(row.original.slug)!"
+                target="_blank"
+                rel="noopener"
+                icon="i-lucide-external-link"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Открыть страницу на сайте"
+                class="cursor-pointer hover:text-primary"
+                @click.stop
+              />
+            </UTooltip>
+            <UTooltip v-if="fullAccess" text="В корзину">
+              <UButton
+                icon="i-lucide-trash-2"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Переместить в корзину"
+                class="cursor-pointer hover:bg-error/10 hover:text-error"
+                @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
+              />
+            </UTooltip>
           </div>
         </template>
         <template #empty>
