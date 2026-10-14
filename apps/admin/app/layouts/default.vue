@@ -6,7 +6,9 @@ const slug = useCurrentProjectSlug()
 const route = useRoute()
 const config = useRuntimeConfig()
 // Админка может жить под префиксом (/admin): картинка из public лежит под ним же.
-const logoSrc = `${config.app.baseURL.replace(/\/+$/, '')}/logo.png`
+const assetBase = config.app.baseURL.replace(/\/+$/, '')
+const logoSrc = `${assetBase}/logo.png`
+const logoWhiteSrc = `${assetBase}/logo-white.png`
 
 const close = () => { open.value = false }
 
@@ -66,10 +68,9 @@ const links = computed<NavigationMenuItem[][]>(() => [
         <!-- Шапка сайдбара фиксированной высоты: в неё помещается только логотип. -->
         <!-- В свёрнутом сайдбаре (64px) широкий логотип не помещается и сжимается: прячем его. -->
         <NuxtLink v-if="!collapsed" to="/" class="block" aria-label="Crito CMS">
-          <!-- Светлая плашка: тёмный текст логотипа нечитаем на тёмной теме. -->
-          <span class="inline-flex rounded-md bg-white px-2 py-0.5 ring ring-default">
-            <img :src="logoSrc" alt="ЦРИТО" class="h-8 w-auto">
-          </span>
+          <!-- Тёмный текст логотипа нечитаем на тёмной теме: в ней показываем белый вариант. -->
+          <img :src="logoSrc" alt="ЦРИТО" class="h-9 w-auto dark:hidden">
+          <img :src="logoWhiteSrc" alt="ЦРИТО" class="hidden h-9 w-auto dark:block">
         </NuxtLink>
       </template>
 
