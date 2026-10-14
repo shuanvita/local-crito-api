@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, UpdatePageRequest } from '@crito/contract'
+import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, ProjectSummary, UpdatePageRequest } from '@crito/contract'
 
 interface Draft {
   blocks: ContentBlock[]
@@ -26,7 +26,24 @@ const { data: manifest } = await useAsyncData(
   { watch: [project] }
 )
 
+// Тот же ключ, что в списке страниц: ответ берётся из кэша.
+const { data: current } = await useAsyncData(
+  () => `project:${project.value}`,
+  () => api<ProjectSummary>(`/projects/${project.value}`),
+  { watch: [project] }
+)
+
 useHead({ title: () => page.value?.slug ?? 'Страница' })
+
+// Адрес сайта берём как origin вебхука проекта (отдельного поля нет); главная `/index` открывается по `/`.
+const siteUrl = computed(() => {
+  if (!page.value || !current.value?.revalidateUrl) return null
+  try {
+    return `${new URL(current.value.revalidateUrl).origin}${page.value.slug === '/index' ? '/' : page.value.slug}`
+  } catch {
+    return null
+  }
+})
 
 // --- черновик ---
 const draft = ref<Draft>()
@@ -150,17 +167,52 @@ useEventListener(window, 'beforeunload', (event) => {
 <template>
   <UDashboardPanel id="page-editor">
     <template #header>
-      <UDashboardNavbar :title="page?.slug ?? 'Страница'">
+      <UDashboardNavbar>
         <template #leading>
           <UDashboardSidebarCollapse />
-          <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" aria-label="К списку страниц" :to="`/${project}/pages`" />
+          <UTooltip text="К списку страниц">
+            <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" aria-label="К списку страниц" :to="`/${project}/pages`" />
+          </UTooltip>
+        </template>
+
+        <!-- заголовок страницы главный, адрес и ссылка на сайт рядом -->
+        <template #title>
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="truncate font-semibold text-highlighted">
+              {{ draft?.meta.title || page?.meta?.title || page?.slug || 'Страница' }}
+            </span>
+            <span v-if="page" class="shrink-0 font-mono text-xs text-muted">{{ page.slug }}</span>
+            <UTooltip v-if="siteUrl" text="Открыть на сайте">
+              <UButton
+                :to="siteUrl"
+                target="_blank"
+                rel="noopener"
+                icon="i-lucide-external-link"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="Открыть страницу на сайте"
+                class="cursor-pointer hover:text-primary"
+              />
+            </UTooltip>
+          </div>
         </template>
 
         <template v-if="draft" #right>
-          <UBadge :label="`Версия ${baseVersion}`" color="neutral" variant="subtle" />
-          <UBadge v-if="dirty" label="Есть изменения" color="warning" variant="subtle" />
-          <UButton label="История" icon="i-lucide-history" color="neutral" variant="ghost" @click="revisionsOpen = true" />
-          <UButton label="Сохранить" icon="i-lucide-save" :disabled="!dirty || trashed" :loading="saving" @click="save" />
+          <UBadge :label="`v${baseVersion}`" color="neutral" variant="subtle" size="md" />
+          <!-- состояние сохранения видно сразу: либо «Есть изменения», либо «Сохранено» -->
+          <span v-if="dirty" class="flex items-center gap-1.5 text-sm text-warning">
+            <span class="size-2 rounded-full bg-warning" />
+            Есть изменения
+          </span>
+          <span v-else class="flex items-center gap-1.5 text-sm text-muted">
+            <UIcon name="i-lucide-check" />
+            Сохранено
+          </span>
+          <UTooltip text="История версий">
+            <UButton icon="i-lucide-history" color="neutral" variant="ghost" aria-label="История версий" class="cursor-pointer" @click="revisionsOpen = true" />
+          </UTooltip>
+          <UButton label="Сохранить" icon="i-lucide-save" :disabled="!dirty || trashed" :loading="saving" class="cursor-pointer" @click="save" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -208,13 +260,13 @@ useEventListener(window, 'beforeunload', (event) => {
           :actions="[{ label: 'Загрузить актуальную версию', color: 'neutral', variant: 'subtle', onClick: reload }]"
         />
 
-        <div class="grid items-start gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-          <!-- список блоков -->
-          <aside class="space-y-3">
+        <div class="grid items-start gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
+          <!-- список блоков: на десктопе закреплён и прокручивается сам, форма справа не уезжает -->
+          <aside class="space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:border-r lg:border-default lg:pr-4">
             <button
               type="button"
-              class="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition"
-              :class="selected === 'page' ? 'border-primary bg-primary/5' : 'border-default hover:bg-elevated/50'"
+              class="flex w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors"
+              :class="selected === 'page' ? 'border-primary bg-primary/5' : 'border-default hover:bg-elevated'"
               @click="selected = 'page'"
             >
               <UIcon name="i-lucide-settings-2" class="text-muted" />
@@ -238,72 +290,95 @@ useEventListener(window, 'beforeunload', (event) => {
               На странице пока нет блоков
             </p>
 
-            <ul class="space-y-2">
+            <!-- одна строка на блок; перемещение и удаление появляются при наведении или фокусе -->
+            <ul class="space-y-1.5">
               <li
                 v-for="(block, index) in draft.blocks"
                 :key="block.id"
-                class="rounded-md border transition"
-                :class="selected === block.id ? 'border-primary bg-primary/5' : 'border-default'"
+                class="group rounded-md border transition-colors"
+                :class="selected === block.id ? 'border-primary bg-primary/5' : 'border-default hover:bg-elevated'"
               >
-                <div class="flex items-center gap-1 p-2">
-                  <button type="button" class="min-w-0 flex-1 text-left" @click="selected = block.id">
+                <div class="flex items-center gap-1 py-1.5 pl-3 pr-2">
+                  <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" @click="selected = block.id">
                     <span class="block truncate text-sm font-medium" :class="block.enabled ? 'text-highlighted' : 'text-muted line-through'">
                       {{ blockTitle(block) }}
                     </span>
                     <span class="block truncate font-mono text-xs text-muted">{{ block.type }}</span>
                   </button>
-                  <USwitch
-                    :model-value="block.enabled"
-                    size="sm"
-                    :aria-label="block.enabled ? 'Скрыть блок' : 'Показать блок'"
-                    @update:model-value="block.enabled = $event"
-                  />
-                </div>
-                <div class="flex items-center justify-between border-t border-default px-1 py-0.5">
-                  <div class="flex">
-                    <UButton icon="i-lucide-arrow-up" size="xs" color="neutral" variant="ghost" aria-label="Выше" :disabled="index === 0" @click="moveBlock(index, -1)" />
-                    <UButton icon="i-lucide-arrow-down" size="xs" color="neutral" variant="ghost" aria-label="Ниже" :disabled="index === draft.blocks.length - 1" @click="moveBlock(index, 1)" />
+
+                  <div class="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+                    <UButton icon="i-lucide-arrow-up" size="xs" color="neutral" variant="ghost" aria-label="Выше" class="cursor-pointer" :disabled="index === 0" @click="moveBlock(index, -1)" />
+                    <UButton icon="i-lucide-arrow-down" size="xs" color="neutral" variant="ghost" aria-label="Ниже" class="cursor-pointer" :disabled="index === draft.blocks.length - 1" @click="moveBlock(index, 1)" />
+                    <UButton icon="i-lucide-trash-2" size="xs" color="neutral" variant="ghost" aria-label="Удалить блок" class="cursor-pointer hover:bg-error/10 hover:text-error" @click="removeBlock(index)" />
                   </div>
-                  <UButton icon="i-lucide-trash-2" size="xs" color="error" variant="ghost" aria-label="Удалить блок" @click="removeBlock(index)" />
+
+                  <UTooltip :text="block.enabled ? 'Показывается на сайте. Нажмите, чтобы скрыть' : 'Скрыт на сайте. Нажмите, чтобы показать'">
+                    <USwitch
+                      :model-value="block.enabled"
+                      size="sm"
+                      class="cursor-pointer"
+                      :aria-label="block.enabled ? 'Скрыть блок' : 'Показать блок'"
+                      @update:model-value="block.enabled = $event"
+                    />
+                  </UTooltip>
                 </div>
               </li>
             </ul>
           </aside>
 
           <!-- правая панель -->
-          <section class="min-w-0 space-y-4">
-            <!-- настройки страницы -->
+          <section class="min-w-0 max-w-3xl space-y-4">
+            <!-- настройки страницы: три секции, чтобы форма не была сплошной простынёй -->
             <template v-if="selected === 'page'">
               <h2 class="text-lg font-semibold text-highlighted">
                 Настройки страницы
               </h2>
 
-              <UFormField label="Адрес" description="Адрес меняется только при создании страницы.">
-                <UInput :model-value="page?.slug" disabled class="w-full" />
-              </UFormField>
-              <UFormField label="Ключ шапки и футера" description="Конфигурация шапки и футера на сайте (необязательно).">
-                <UInput v-model="draft.headerConfig" class="w-full" />
-              </UFormField>
-              <USwitch v-model="draft.noFooterSpacing" label="Без отступа перед футером" />
+              <UCard :ui="{ body: 'space-y-4' }">
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    Основное
+                  </h3>
+                </template>
+                <UFormField label="Адрес" description="Адрес меняется только при создании страницы.">
+                  <UInput :model-value="page?.slug" disabled icon="i-lucide-lock" class="w-full font-mono" />
+                </UFormField>
+                <UFormField label="Ключ шапки и футера" description="Конфигурация шапки и футера на сайте (необязательно).">
+                  <UInput v-model="draft.headerConfig" class="w-full" />
+                </UFormField>
+                <USwitch v-model="draft.noFooterSpacing" label="Без отступа перед футером" />
+              </UCard>
 
-              <h3 class="pt-2 font-medium text-highlighted">
-                SEO
-              </h3>
-              <UFormField label="Заголовок (title)">
-                <UInput v-model="draft.meta.title" class="w-full" />
-              </UFormField>
-              <UFormField label="Описание (description)">
-                <UTextarea v-model="draft.meta.description" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField label="Заголовок для соцсетей (og:title)">
-                <UInput v-model="draft.meta.ogTitle" class="w-full" />
-              </UFormField>
-              <UFormField label="Описание для соцсетей (og:description)">
-                <UTextarea v-model="draft.meta.ogDescription" :rows="2" class="w-full" />
-              </UFormField>
-              <UFormField label="Картинка для соцсетей (og:image)">
-                <EditorFieldImage v-model="draft.meta.ogImage" :project="project" />
-              </UFormField>
+              <UCard :ui="{ body: 'space-y-4' }">
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    SEO
+                  </h3>
+                </template>
+                <UFormField label="Заголовок (title)" :hint="`${(draft.meta.title ?? '').length} / 60`">
+                  <UInput v-model="draft.meta.title" class="w-full" />
+                </UFormField>
+                <UFormField label="Описание (description)" :hint="`${(draft.meta.description ?? '').length} / 160`">
+                  <UTextarea v-model="draft.meta.description" :rows="3" class="w-full" />
+                </UFormField>
+              </UCard>
+
+              <UCard :ui="{ body: 'space-y-4' }">
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    Соцсети
+                  </h3>
+                </template>
+                <UFormField label="Заголовок для соцсетей (og:title)">
+                  <UInput v-model="draft.meta.ogTitle" class="w-full" />
+                </UFormField>
+                <UFormField label="Описание для соцсетей (og:description)">
+                  <UTextarea v-model="draft.meta.ogDescription" :rows="2" class="w-full" />
+                </UFormField>
+                <UFormField label="Картинка для соцсетей (og:image)">
+                  <EditorFieldImage v-model="draft.meta.ogImage" :project="project" />
+                </UFormField>
+              </UCard>
             </template>
 
             <!-- блок -->
