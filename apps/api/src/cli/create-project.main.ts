@@ -50,20 +50,23 @@ let exitCode = 0;
 try {
   // Те же правила, что у `POST /projects`: slug, адрес вебхука.
   const problems = (await validate(dto, { whitelist: true })).flatMap((issue) => Object.values(issue.constraints ?? {}));
-  if (problems.length > 0) throw new Error(problems.join('\n'));
+  if (problems.length > 0) {
+    console.error(problems.join('\n'));
+    exitCode = 1;
+  } else {
+    const prisma = app.get(PrismaService);
+    const user = await prisma.user.upsert({
+      where: { externalId: 'cli' },
+      create: { externalId: 'cli', email: 'cli@localhost', name: 'Консоль оператора' },
+      update: {},
+    });
+    const principal: Principal = { userId: user.id, email: user.email, name: user.name ?? undefined, isSuperAdmin: true, grants: [] };
 
-  const prisma = app.get(PrismaService);
-  const user = await prisma.user.upsert({
-    where: { externalId: 'cli' },
-    create: { externalId: 'cli', email: 'cli@localhost', name: 'Консоль оператора' },
-    update: {},
-  });
-  const principal: Principal = { userId: user.id, email: user.email, name: user.name ?? undefined, isSuperAdmin: true, grants: [] };
-
-  const { project, ciKey } = await app.get(ProjectsService).create(principal, dto);
-  console.log(`Проект создан: ${project.slug} (${project.name})`);
-  console.log('Ключ CI (показывается один раз, сохраните в секретах CI сайта):');
-  console.log(ciKey);
+    const { project, ciKey } = await app.get(ProjectsService).create(principal, dto);
+    console.log(`Проект создан: ${project.slug} (${project.name})`);
+    console.log('Ключ CI (показывается один раз, сохраните в секретах CI сайта):');
+    console.log(ciKey);
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   exitCode = 1;

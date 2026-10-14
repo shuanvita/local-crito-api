@@ -341,6 +341,7 @@ describe('очистка данных блоков', () => {
         blocks: [
           infoBlock({
             title: 'Заголовок',
+            // noinspection HtmlRequiredAltAttribute,HtmlUnknownTarget,HtmlDeprecatedAttribute: пейлоад XSS, не разметка
             body: '<p onclick="x()">ок</p><script>alert(1)</script><img src=x onerror=alert(2)><a href="javascript:alert(3)">ссылка</a>',
           }),
         ],
@@ -430,6 +431,7 @@ describe('права: доступ только к отдельным стран
 
   it('не может менять содержимое блоков без схемы', async () => {
     const page = await http.get(`/projects/rucode/pages/${pageA}`, editor).expect(200);
+    // noinspection HtmlRequiredAltAttribute,HtmlUnknownTarget,HtmlDeprecatedAttribute: пейлоад XSS, не разметка
     const tampered = page.body.blocks.map((b: { type: string }) =>
       b.type === 'legacy' ? { ...b, data: { html: '<img src=x onerror=alert(1)>' } } : b,
     );
