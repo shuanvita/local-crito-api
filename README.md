@@ -85,7 +85,7 @@ crito-api/
 | GET | `/me` | кто вошёл: `email`, `name`, `isSuperAdmin` |
 | GET | `/media/:project/:sha256.:ext` | публично: файл (кэш на год, `nosniff`) |
 | GET, POST | `/projects` | список доступных проектов; создание (суперадмин) |
-| GET, PATCH | `/projects/:project` | проект; настройки и секрет вебхука (суперадмин) |
+| GET, PATCH | `/projects/:project` | проект; настройки, секрет вебхука и номер счётчика Яндекс Метрики `metrikaCounterId` (суперадмин; цифры, до 12 знаков; пустая строка очищает). Номер видят все с доступом к проекту, в публичный API он не попадает |
 | POST | `/projects/:project/ci-key` | новый ключ CI (суперадмин) |
 | GET | `/projects/:project/manifest` | манифест блоков |
 | PUT | `/projects/:project/manifest` | загрузка манифеста: заголовок `x-ci-key`, без сессии |
@@ -140,7 +140,7 @@ curl -X POST http://localhost:3000/projects -H "content-type: application/json" 
 
 ```bash
 npm run build -w @crito/api
-npm run create-project -- --slug rucode --name RuCode [--revalidate-url https://site/api/revalidate --revalidate-secret <секрет>]
+npm run create-project -- --slug rucode --name RuCode [--revalidate-url https://site/api/revalidate --revalidate-secret <секрет>] [--metrika-counter-id 12345678]
 ```
 
 **Манифест блоков.** Без манифеста страницы нельзя создавать и сохранять. Соберите его во фронтенде сайта (`npm run manifest`, файл `.output/manifest.json`) и отправьте:
@@ -364,6 +364,7 @@ sudo systemctl restart crito-api crito-admin
 
 - Сайт читает страницы по адресу `NUXT_CMS_BASE_URL=<api>/public/<project>` (запрос `/pages/<slug>`, главная как `/index`).
 - Вебхук сброса кэша: сайт принимает `POST` с заголовком `x-revalidate-secret`; адрес и секрет задаются в проекте (`PATCH /projects/:project`, поля `revalidateUrl` и `revalidateSecret`).
+- Счётчик Яндекс Метрики: номер задаёт разработчик (`PATCH /projects/:project` с `metrikaCounterId` или `--metrika-counter-id` при создании). В админке он показан менеджерам справкой (копирование и ссылка на Метрику) в списке страниц и в настройках страницы, без редактирования. Сам счётчик на сайте подключается кодом сайта; публичный API номер не отдаёт.
 - Манифест блоков собирает фронтенд (`npm run manifest`) и отправляет в CI после деплоя: `PUT /projects/:project/manifest` с заголовком `x-ci-key`. Без манифеста страницы нельзя создавать и сохранять.
 - Формат страницы совпадает с `ContentPage` фронтенда rucode.
 

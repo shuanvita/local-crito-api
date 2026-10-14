@@ -227,6 +227,8 @@ async function confirmAction() {
         class="mb-4"
       />
 
+      <MetrikaCounter v-if="current" :counter-id="current.metrikaCounterId" class="mb-4" />
+
       <!-- вкладки слева, поиск и обновление справа: один ряд вместо трёх -->
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <UTabs

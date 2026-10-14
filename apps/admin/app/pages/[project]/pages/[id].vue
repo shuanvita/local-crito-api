@@ -334,6 +334,18 @@ useEventListener(window, 'beforeunload', (event) => {
                 Настройки страницы
               </h2>
 
+              <UCard>
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    Аналитика
+                  </h3>
+                </template>
+                <MetrikaCounter :counter-id="current?.metrikaCounterId" />
+                <p class="mt-2 text-xs text-muted">
+                  Справка: счётчик общий для всего сайта и здесь не редактируется.
+                </p>
+              </UCard>
+
               <UCard :ui="{ body: 'space-y-4' }">
                 <template #header>
                   <h3 class="font-medium text-highlighted">

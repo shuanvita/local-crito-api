@@ -6,6 +6,11 @@ export interface ProjectSummary {
   defaultLocale: string
   /** Адрес вебхука сайта для сброса кэша. */
   revalidateUrl: string | null
+  /**
+   * Номер счётчика Яндекс Метрики сайта: справка для менеджеров, задаётся разработчиками.
+   * Публичный API его не отдаёт: сайт подключает счётчик в своём коде.
+   */
+  metrikaCounterId: string | null
   /** null, пока CI не загрузил манифест блоков. */
   manifestHash: string | null
   createdAt: string
@@ -29,15 +34,21 @@ export interface CreateProjectRequest {
   name: string
   defaultLocale?: string
   revalidateUrl?: string
+  /** Только цифры, до 12 знаков. */
+  metrikaCounterId?: string
   /** Хранится в БД зашифрованным и назад не возвращается. */
   revalidateSecret?: string
 }
 
-/** `PATCH /projects/:project` (суперадмин). Пустая строка в `revalidateUrl` и `revalidateSecret` очищает значение. */
+/**
+ * `PATCH /projects/:project` (суперадмин). Пустая строка в `revalidateUrl`, `revalidateSecret`
+ * и `metrikaCounterId` очищает значение.
+ */
 export interface UpdateProjectRequest {
   name?: string
   defaultLocale?: string
   revalidateUrl?: string
+  metrikaCounterId?: string
   revalidateSecret?: string
 }
 

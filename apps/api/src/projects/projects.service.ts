@@ -15,6 +15,7 @@ const publicSelect = {
   name: true,
   defaultLocale: true,
   revalidateUrl: true,
+  metrikaCounterId: true,
   manifestHash: true,
   createdAt: true,
 } as const;
@@ -56,6 +57,7 @@ export class ProjectsService {
         name: dto.name,
         defaultLocale: dto.defaultLocale,
         revalidateUrl: dto.revalidateUrl,
+        metrikaCounterId: dto.metrikaCounterId,
         revalidateSecret: this.encryptSecret(dto.revalidateSecret),
         ciKeyHash: hashKey(ciKey),
       },
@@ -64,7 +66,7 @@ export class ProjectsService {
     return { project: await this.withAccess(principal, project), ciKey };
   }
 
-  /** Меняет настройки проекта. Пустая строка в revalidateUrl или revalidateSecret очищает значение. */
+  /** Меняет настройки проекта. Пустая строка в revalidateUrl, revalidateSecret или metrikaCounterId очищает значение. */
   async update(principal: Principal, slug: string, dto: UpdateProjectDto) {
     this.access.assertSuperAdmin(principal);
     const { count } = await this.prisma.project.updateMany({
@@ -73,6 +75,7 @@ export class ProjectsService {
         name: dto.name,
         defaultLocale: dto.defaultLocale,
         revalidateUrl: dto.revalidateUrl === undefined ? undefined : dto.revalidateUrl || null,
+        metrikaCounterId: dto.metrikaCounterId === undefined ? undefined : dto.metrikaCounterId || null,
         revalidateSecret:
           dto.revalidateSecret === undefined ? undefined : (this.encryptSecret(dto.revalidateSecret) ?? null),
       },

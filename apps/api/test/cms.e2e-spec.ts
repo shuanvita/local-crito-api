@@ -646,3 +646,39 @@ describe('эксплуатация и защитные механизмы', () =
     }
   });
 });
+
+describe('номер счётчика Яндекс Метрики', () => {
+  it('задаёт суперадмин, менеджер страницы видит значение, публичный API его не отдаёт', async () => {
+    await http.patch('/projects/rucode', admin).send({ metrikaCounterId: '12345678' }).expect(200);
+
+    const page = await http.post('/projects/rucode/pages', admin).send({ slug: '/metrika', blocks: [] }).expect(201);
+    const manager = await ctx.login('metrika-manager@e2e.test', {
+      grants: [{ project: 'rucode', scope: 'pages', pageIds: [page.body.id] }],
+    });
+
+    const project = await http.get('/projects/rucode', manager).expect(200);
+    expect(project.body.metrikaCounterId).toBe('12345678');
+    const list = await http.get('/projects', manager).expect(200);
+    expect(list.body.find((p: { slug: string }) => p.slug === 'rucode').metrikaCounterId).toBe('12345678');
+
+    const pub = await http.get('/public/rucode/pages/metrika').expect(200);
+    expect(JSON.stringify(pub.body)).not.toContain('12345678');
+    expect(pub.body).not.toHaveProperty('metrikaCounterId');
+  });
+
+  it('менеджер не меняет номер; принимает только цифры; пустая строка очищает', async () => {
+    const manager = await ctx.login('metrika-manager@e2e.test');
+    await http.patch('/projects/rucode', manager).send({ metrikaCounterId: '1' }).expect(403);
+
+    // Номер попадает в ссылку на Метрику в админке: всё, кроме цифр, отклоняем.
+    for (const bad of ['abc', '12 34', '1234567890123', '../1', '12345678"><script>']) {
+      await http.patch('/projects/rucode', admin).send({ metrikaCounterId: bad }).expect(400);
+    }
+    const unchanged = await ctx.prisma.project.findUniqueOrThrow({ where: { slug: 'rucode' } });
+    expect(unchanged.metrikaCounterId).toBe('12345678');
+
+    await http.patch('/projects/rucode', admin).send({ metrikaCounterId: '' }).expect(200);
+    const cleared = await ctx.prisma.project.findUniqueOrThrow({ where: { slug: 'rucode' } });
+    expect(cleared.metrikaCounterId).toBeNull();
+  });
+});

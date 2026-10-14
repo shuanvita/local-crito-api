@@ -4,7 +4,7 @@
  *
  *   npm run build -w @crito/api
  *   node apps/api/dist/cli/create-project.main.js --slug rucode --name RuCode \
- *     [--revalidate-url https://site/api/revalidate] [--revalidate-secret <секрет>]
+ *     [--revalidate-url https://site/api/revalidate] [--revalidate-secret <секрет>] [--metrika-counter-id 12345678]
  *
  * Работает напрямую с БД через сервисы приложения (без HTTP и входа): запускается оператором на сервере.
  * Ключ CI печатается один раз, в БД хранится только его хеш.
@@ -25,12 +25,13 @@ const { values } = parseArgs({
     'default-locale': { type: 'string' },
     'revalidate-url': { type: 'string' },
     'revalidate-secret': { type: 'string' },
+    'metrika-counter-id': { type: 'string' },
   },
 });
 
 if (!values.slug || !values.name) {
   console.error(
-    'Использование: --slug <slug> --name <название> [--default-locale ru] [--revalidate-url <url>] [--revalidate-secret <секрет>]',
+    'Использование: --slug <slug> --name <название> [--default-locale ru] [--revalidate-url <url>] [--revalidate-secret <секрет>] [--metrika-counter-id <номер>]',
   );
   process.exit(2);
 }
@@ -41,6 +42,7 @@ const dto = Object.assign(new CreateProjectDto(), {
   defaultLocale: values['default-locale'],
   revalidateUrl: values['revalidate-url'],
   revalidateSecret: values['revalidate-secret'],
+  metrikaCounterId: values['metrika-counter-id'],
 });
 
 const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
