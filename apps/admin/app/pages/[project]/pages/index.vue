@@ -93,28 +93,43 @@ function sortableHeader(label: string) {
 
 // Заголовок главный, адрес под ним: страницу узнают по названию, а не по пути.
 const titleCell = (item: PageListItem) => h('div', { class: 'min-w-0' }, [
-  h('p', { class: 'truncate font-medium text-highlighted' }, item.meta?.title || 'Без заголовка'),
+  h('p', { class: 'truncate font-medium text-highlighted transition-colors group-hover:text-primary' }, item.meta?.title || NO_TITLE),
   h('p', { class: 'truncate font-mono text-xs text-muted' }, item.slug)
 ])
+
+const NO_TITLE = 'Без заголовка'
+
+// Адрес сайта в проекте не хранится отдельно: берём origin вебхука (`https://site/api/revalidate`),
+// он всегда на том же сайте. Без вебхука ссылку «Открыть на сайте» не показываем.
+const siteOrigin = computed(() => {
+  try {
+    return current.value?.revalidateUrl ? new URL(current.value.revalidateUrl).origin : null
+  } catch {
+    return null
+  }
+})
+// Главная хранится как `/index`, а на сайте открывается по `/`.
+const siteUrl = (slug: string) => siteOrigin.value ? `${siteOrigin.value}${slug === '/index' ? '/' : slug}` : null
 
 const pageColumns = computed<TableColumn<PageListItem>[]>(() => [
   {
     id: 'title',
-    accessorFn: row => (row.meta?.title ?? row.slug).toLowerCase(),
+    // Сортируем по тому же тексту, который показываем в строке.
+    accessorFn: row => (row.meta?.title || NO_TITLE).toLowerCase(),
     header: sortableHeader('Страница'),
     cell: ({ row }) => titleCell(row.original)
   },
   {
     accessorKey: 'version',
     header: sortableHeader('Версия'),
-    cell: ({ row }) => h(UBadgeComponent, { color: 'neutral', variant: 'subtle', size: 'sm', label: `v${row.original.version}` })
+    cell: ({ row }) => h(UBadgeComponent, { color: 'neutral', variant: 'subtle', size: 'md', label: `v${row.original.version}` })
   },
   {
     accessorKey: 'updatedAt',
     header: sortableHeader('Изменена'),
     cell: ({ row }) => h('span', { class: 'text-sm text-toned', title: formatDate(row.original.updatedAt) }, formatRelative(row.original.updatedAt))
   },
-  ...(fullAccess.value ? [{ id: 'actions', header: '' }] : [])
+  { id: 'actions', header: '' }
 ])
 
 const trashColumns: TableColumn<TrashedPageItem>[] = [
@@ -240,20 +255,36 @@ async function confirmAction() {
         :columns="pageColumns"
         :loading="status === 'pending'"
         class="shrink-0"
-        :ui="{ tr: 'group cursor-pointer hover:bg-elevated/50 transition-colors', td: 'py-3' }"
+        :ui="{ tr: 'group cursor-pointer hover:bg-elevated transition-colors', td: 'py-3' }"
         @select="openPage"
       >
         <template #actions-cell="{ row }">
-          <div class="flex justify-end">
-            <UButton
-              icon="i-lucide-trash-2"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              aria-label="Переместить в корзину"
-              class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-              @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
-            />
+          <div class="flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            <UTooltip v-if="siteUrl(row.original.slug)" text="Открыть на сайте">
+              <UButton
+                :to="siteUrl(row.original.slug)!"
+                target="_blank"
+                rel="noopener"
+                icon="i-lucide-external-link"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Открыть страницу на сайте"
+                class="hover:text-primary"
+                @click.stop
+              />
+            </UTooltip>
+            <UTooltip v-if="fullAccess" text="В корзину">
+              <UButton
+                icon="i-lucide-trash-2"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Переместить в корзину"
+                class="hover:bg-error/10 hover:text-error"
+                @click.stop="pending = { kind: 'trash', slug: row.original.slug, id: row.original.id }"
+              />
+            </UTooltip>
           </div>
         </template>
         <template #empty>
