@@ -10,6 +10,7 @@ export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest
 export type { ApiErrorBody } from './errors.js'
 export type { ExportFile } from './import.js'
 export type { BlockManifest, JsonSchema, ManifestBlock } from './manifest.js'
+export type { CurrentUser } from './me.js'
 export type { MediaItem } from './media.js'
 export type {
   CreatePageRequest,

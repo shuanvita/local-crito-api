@@ -1,11 +1,11 @@
 /**
- * Импорт справочника «Регионы» проекта из файла.
+ * Импорт общего справочника «Регионы» из файла.
  *
  *   npm run build -w @crito/api
- *   node apps/api/dist/cli/import-regions.main.js --file scripts/rucode/regions.json --project rucode [--dry-run] [--overwrite]
+ *   node apps/api/dist/cli/import-regions.main.js --file scripts/rucode/regions.json [--dry-run] [--overwrite]
  *
  * Работает напрямую с БД (без HTTP и входа): запускается оператором на сервере. После записи вызывает
- * вебхук сайта, чтобы он перечитал справочник.
+ * вебхуки всех сайтов, чтобы они перечитали справочник.
  */
 import { NestFactory } from '@nestjs/core';
 import { readFileSync } from 'node:fs';
@@ -20,22 +20,17 @@ import type { RegionsFile } from './import-regions.js';
 const { values } = parseArgs({
   options: {
     file: { type: 'string' },
-    project: { type: 'string' },
     'dry-run': { type: 'boolean', default: false },
     overwrite: { type: 'boolean', default: false },
   },
 });
 
-if (!values.file || !values.project) {
-  console.error('Использование: --file <regions.json> --project <slug> [--dry-run] [--overwrite]');
+if (!values.file) {
+  console.error('Использование: --file <regions.json> [--dry-run] [--overwrite]');
   process.exit(2);
 }
 
 const data = JSON.parse(readFileSync(resolve(values.file), 'utf8')) as RegionsFile;
-if (data.project !== values.project) {
-  console.error(`Файл относится к проекту "${data.project}", а импорт запущен для "${values.project}"`);
-  process.exit(2);
-}
 
 const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
 let exitCode = 0;
@@ -43,16 +38,7 @@ try {
   const prisma = app.get(PrismaService);
   const revalidate = app.get(RevalidateService);
 
-  const project = await prisma.project.findUnique({
-    where: { slug: values.project },
-    select: { id: true, slug: true, revalidateUrl: true, revalidateSecret: true },
-  });
-  if (!project) {
-    throw new Error(`Проект "${values.project}" не найден. Создайте его (POST /projects).`);
-  }
-
   const existing = await prisma.region.findMany({
-    where: { projectId: project.id },
     select: { id: true, value: true, label: true, sortOrder: true },
   });
   const actions = planRegionImport(existing, data, { overwrite: values.overwrite });
@@ -66,7 +52,7 @@ try {
     if (!dryRun) {
       if (action.kind === 'create') {
         await prisma.region.create({
-          data: { projectId: project.id, value: action.value, label: action.label, sortOrder: action.sortOrder },
+          data: { value: action.value, label: action.label, sortOrder: action.sortOrder },
         });
       } else {
         await prisma.region.update({
@@ -84,7 +70,11 @@ try {
       (dryRun ? ' (пробный запуск, ничего не записано)' : ''),
   );
   if (!dryRun && count('create') + count('update') > 0) {
-    revalidate.notify(project);
+    const projects = await prisma.project.findMany({
+      where: { revalidateUrl: { not: null } },
+      select: { slug: true, revalidateUrl: true, revalidateSecret: true },
+    });
+    for (const project of projects) revalidate.notify(project);
     await revalidate.flush();
   }
 } catch (error) {

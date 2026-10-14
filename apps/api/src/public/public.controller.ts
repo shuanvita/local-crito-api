@@ -5,6 +5,32 @@ import { Public } from '../auth/public.decorator.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { tryNormalizeSlug } from '../common/slug.js';
 
+/** Регионы в порядке, заданном в админке: форма совпадает с `RegionOption` сайта. */
+export function listPublicRegions(prisma: PrismaService): Promise<PublicRegion[]> {
+  return prisma.region.findMany({
+    select: { value: true, label: true },
+    orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+  });
+}
+
+/**
+ * Общие справочники: не принадлежат проекту, любой сайт читает их по одному адресу.
+ * Регистрируется раньше `PublicController`, чтобы `dictionaries` не принимали за slug проекта.
+ */
+@ApiTags('public')
+@Public()
+@Controller('public/dictionaries')
+export class PublicDictionariesController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  /** Массив `{ value, label }`; пустой справочник даёт `[]`. Кэш как у страниц: `no-cache` с проверкой `ETag`. */
+  @Header('Cache-Control', 'public, no-cache')
+  @Get('regions')
+  regions(): Promise<PublicRegion[]> {
+    return listPublicRegions(this.prisma);
+  }
+}
+
 /**
  * Публичное чтение страниц сайтом. Формат ответа совпадает с `ContentPage` фронта
  * (`parseContentPage`): сайт задаёт `NUXT_CMS_BASE_URL=<api>/public/<project>`
@@ -17,19 +43,16 @@ export class PublicController {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Справочник регионов: массив `{ value, label }` в порядке, заданном в админке. Кэш как у страниц.
-   * Неизвестный проект это 404 (как и у страниц); у проекта без регионов ответ `[]`.
+   * Устаревший адрес справочника регионов, оставлен, чтобы уже выложенные сайты не сломались.
+   * Справочник общий для всех проектов: отдаёт то же, что `GET /public/dictionaries/regions`.
+   * Неизвестный проект это 404 (как и у страниц).
    */
   @Header('Cache-Control', 'public, no-cache')
   @Get('dictionaries/regions')
   async getRegions(@Param('project') project: string): Promise<PublicRegion[]> {
     const found = await this.prisma.project.findUnique({ where: { slug: project }, select: { id: true } });
     if (!found) throw new NotFoundException('Проект не найден');
-    return this.prisma.region.findMany({
-      where: { projectId: found.id },
-      select: { value: true, label: true },
-      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    });
+    return listPublicRegions(this.prisma);
   }
 
   // no-cache: кэши могут хранить ответ, но каждый раз сверяют ETag, поэтому публикация видна сразу.

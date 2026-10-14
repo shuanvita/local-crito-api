@@ -4,7 +4,6 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import type { CreateRegionRequest, RegionItem } from '@crito/contract'
 
 const props = defineProps<{
-  project: string
   /** Регион для правки; без него модалка создаёт новый. */
   region?: RegionItem
   /** Значение «Порядка» для нового региона: конец списка. */
@@ -37,7 +36,7 @@ watch(open, (value) => {
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
   loading.value = true
-  const base = `/projects/${props.project}/dictionaries/regions`
+  const base = '/dictionaries/regions'
   try {
     if (props.region) {
       await api(`${base}/${props.region.id}`, { method: 'PATCH', body: event.data })
@@ -58,7 +57,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   <UModal
     v-model:open="open"
     :title="region ? 'Изменить регион' : 'Новый регион'"
-    description="Изменения сразу видны сайту: сохранение публикует справочник."
+    description="Справочник общий для всех проектов: сохранение сразу публикует его на всех сайтах."
   >
     <template #body>
       <UForm id="region-form" :schema="schema" :state="state" class="space-y-4" @submit="onSubmit">
@@ -68,7 +67,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         <UFormField
           label="Идентификатор"
           name="value"
-          help="Числовой код региона во внешней системе: сайт отправляет его как есть. Уникален в проекте."
+          help="Числовой код региона во внешней системе: сайт отправляет его как есть. Уникален во всём справочнике."
           required
         >
           <UInputNumber

@@ -1,9 +1,11 @@
 import type { CreateProjectRequest, UpdateProjectRequest } from '@crito/contract';
-import { IsOptional, IsString, IsUrl, Matches, MinLength, ValidateIf } from 'class-validator';
+import { IsOptional, IsString, IsUrl, Matches, MinLength, NotEquals, ValidateIf } from 'class-validator';
 
 export class CreateProjectDto implements CreateProjectRequest {
   @IsString()
   @Matches(/^[a-z0-9][a-z0-9-]*$/, { message: 'slug: строчные латинские буквы, цифры и дефис' })
+  // `dictionaries` занят общими справочниками: в админке это адрес /dictionaries/..., а не проект.
+  @NotEquals('dictionaries', { message: 'slug dictionaries зарезервирован' })
   slug: string;
 
   @IsString()

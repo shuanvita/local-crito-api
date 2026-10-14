@@ -10,6 +10,7 @@
 import type {
   BlockManifest,
   CreateProjectResponse,
+  CurrentUser,
   MediaItem,
   PageDetail,
   PageListItem,
@@ -19,6 +20,7 @@ import type {
   RotateCiKeyResponse,
   TrashedPageItem,
 } from '@crito/contract';
+import type { MeController } from '../src/auth/me.controller.js';
 import type { DictionariesService } from '../src/dictionaries/dictionaries.service.js';
 import type { ManifestService } from '../src/manifest/manifest.service.js';
 import type { MediaService } from '../src/media/media.service.js';
@@ -61,6 +63,8 @@ export type ContractChecks = [
   Expect<Extends<Wire<ReturnType<DictionariesService['listRegions']>>, RegionItem[]>>,
   Expect<Extends<Wire<ReturnType<DictionariesService['createRegion']>>, RegionItem>>,
   Expect<Extends<Wire<ReturnType<DictionariesService['updateRegion']>>, RegionItem>>,
+  // текущий пользователь
+  Expect<Extends<ReturnType<MeController['me']>, CurrentUser>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)
   Expect<Extends<Awaited<ReturnType<ManifestService['get']>>, BlockManifest | null>>,
 ];

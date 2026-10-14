@@ -11,7 +11,7 @@ import { ManifestModule } from './manifest/manifest.module.js';
 import { PagesModule } from './pages/pages.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
-import { PublicController } from './public/public.controller.js';
+import { PublicController, PublicDictionariesController } from './public/public.controller.js';
 
 @Module({
   imports: [
@@ -30,6 +30,6 @@ import { PublicController } from './public/public.controller.js';
     DictionariesModule,
     MediaModule,
   ],
-  controllers: [PublicController, HealthController],
+  controllers: [PublicDictionariesController, PublicController, HealthController],
 })
 export class AppModule {}

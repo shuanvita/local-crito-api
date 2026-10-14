@@ -33,7 +33,7 @@ export class ProjectsService {
       ? {}
       : { slug: { in: [...new Set(principal.grants.map((grant) => grant.project))] } };
     const projects = await this.prisma.project.findMany({ where, select: publicSelect, orderBy: { name: 'asc' } });
-    return projects.map((project) => this.withAccess(principal, project));
+    return Promise.all(projects.map((project) => this.withAccess(principal, project)));
   }
 
   async get(principal: Principal, slug: string) {
@@ -61,7 +61,7 @@ export class ProjectsService {
       },
       select: publicSelect,
     });
-    return { project: this.withAccess(principal, project), ciKey };
+    return { project: await this.withAccess(principal, project), ciKey };
   }
 
   /** Меняет настройки проекта. Пустая строка в revalidateUrl или revalidateSecret очищает значение. */
@@ -92,9 +92,24 @@ export class ProjectsService {
     return { ciKey };
   }
 
-  /** Добавляет к проекту право текущего пользователя: интерфейс по нему скрывает недоступные действия. */
-  private withAccess<T extends { slug: string }>(principal: Principal, project: T) {
-    return { ...project, fullAccess: this.access.hasFullProjectAccess(principal, project.slug) };
+  /**
+   * Добавляет к проекту право текущего пользователя (интерфейс по нему скрывает недоступные действия)
+   * и сводку для карточки на главной. Сводка считается по страницам, доступным пользователю: тот, кому
+   * выдали несколько страниц, не узнаёт, сколько их всего в проекте и когда менялись остальные.
+   */
+  private async withAccess<T extends { id: string; slug: string }>(principal: Principal, project: T) {
+    const allowed = this.access.allowedPageIds(principal, project.slug);
+    const stats = await this.prisma.page.aggregate({
+      where: { projectId: project.id, deletedAt: null, ...(allowed ? { id: { in: allowed } } : {}) },
+      _count: { _all: true },
+      _max: { updatedAt: true },
+    });
+    return {
+      ...project,
+      fullAccess: this.access.hasFullProjectAccess(principal, project.slug),
+      pagesCount: stats._count._all,
+      lastChangedAt: stats._max.updatedAt,
+    };
   }
 
   private encryptSecret(secret: string | undefined): string | undefined {

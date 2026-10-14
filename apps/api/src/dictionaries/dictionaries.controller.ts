@@ -7,33 +7,28 @@ import { DictionariesService } from './dictionaries.service.js';
 
 @ApiTags('dictionaries')
 @ApiBearerAuth()
-@Controller('projects/:project/dictionaries/regions')
+@Controller('dictionaries/regions')
 export class DictionariesController {
   constructor(private readonly dictionaries: DictionariesService) {}
 
   @Get()
-  list(@CurrentPrincipal() principal: Principal, @Param('project') project: string) {
-    return this.dictionaries.listRegions(principal, project);
+  list() {
+    return this.dictionaries.listRegions();
   }
 
   @Post()
-  create(@CurrentPrincipal() principal: Principal, @Param('project') project: string, @Body() dto: CreateRegionDto) {
-    return this.dictionaries.createRegion(principal, project, dto);
+  create(@CurrentPrincipal() principal: Principal, @Body() dto: CreateRegionDto) {
+    return this.dictionaries.createRegion(principal, dto);
   }
 
   @Patch(':id')
-  update(
-    @CurrentPrincipal() principal: Principal,
-    @Param('project') project: string,
-    @Param('id') id: string,
-    @Body() dto: UpdateRegionDto,
-  ) {
-    return this.dictionaries.updateRegion(principal, project, id, dto);
+  update(@CurrentPrincipal() principal: Principal, @Param('id') id: string, @Body() dto: UpdateRegionDto) {
+    return this.dictionaries.updateRegion(principal, id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@CurrentPrincipal() principal: Principal, @Param('project') project: string, @Param('id') id: string) {
-    return this.dictionaries.removeRegion(principal, project, id);
+  remove(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
+    return this.dictionaries.removeRegion(principal, id);
   }
 }

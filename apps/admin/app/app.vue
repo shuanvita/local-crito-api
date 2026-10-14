@@ -10,6 +10,7 @@ useHead({
     { name: 'viewport', content: 'width=device-width, initial-scale=1' },
     { key: 'theme-color', name: 'theme-color', content: color }
   ],
+  link: [{ rel: 'icon', type: 'image/png', href: `${useRuntimeConfig().app.baseURL.replace(/\/+$/, '')}/logo.png` }],
   htmlAttrs: { lang: 'ru' },
   titleTemplate: title => title ? `${title} · Crito CMS` : 'Crito CMS'
 })
