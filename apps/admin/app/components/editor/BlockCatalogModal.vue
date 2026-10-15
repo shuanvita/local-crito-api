@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { ManifestBlock } from '@crito/contract'
+import { resolvePreview } from '~/utils/site'
 import {
   CATEGORY_ICONS,
+  CATEGORY_LABELS,
   groupEntries,
   matchesQuery,
   pushRecent,
@@ -18,6 +20,8 @@ const props = defineProps<{
   pageSlug: string
   /** Типы блоков, уже стоящих на странице. */
   usedTypes: string[]
+  /** Адрес сайта проекта: относительные пути превью блоков берутся с него. */
+  siteOrigin?: string | null
 }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ add: [block: ManifestBlock] }>()
@@ -98,6 +102,29 @@ const recentEntries = computed(() => {
     return entry ? [entry] : []
   })
 })
+
+// Окно «Посмотреть»: крупный пример блока и пояснение, чтобы выбрать осознанно.
+const detail = ref<CatalogEntry | null>(null)
+const detailOpen = computed({
+  get: () => detail.value !== null,
+  set: (value) => {
+    if (!value) detail.value = null
+  }
+})
+const previewOf = (entry: CatalogEntry) => resolvePreview(entry.block.preview, props.siteOrigin ?? null)
+// Если картинка не загрузилась (сайт недоступен, файла нет), показываем заглушку, а не битое изображение.
+const failed = ref(new Set<string>())
+const previewFor = (entry: CatalogEntry) => failed.value.has(entry.block.type) ? null : previewOf(entry)
+function markFailed(entry: CatalogEntry) {
+  failed.value = new Set(failed.value).add(entry.block.type)
+}
+
+function addFromDetail(event: MouseEvent) {
+  const entry = detail.value
+  if (!entry) return
+  detail.value = null
+  pick(entry, event)
+}
 
 function pick(entry: CatalogEntry, event: MouseEvent) {
   emit('add', entry.block)
@@ -206,7 +233,18 @@ const EMPTY_HINT: Record<CatalogTab, string> = {
                 {{ group.name }}
               </h3>
               <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <li v-for="entry in group.entries" :key="entry.block.type">
+                <li v-for="entry in group.entries" :key="entry.block.type" class="relative">
+                  <!-- «Посмотреть» рядом с карточкой, а не внутри неё: кнопка в кнопке недопустима -->
+                  <UButton
+                    label="Посмотреть"
+                    icon="i-lucide-eye"
+                    size="xs"
+                    color="neutral"
+                    variant="subtle"
+                    class="absolute right-5 top-5 z-10 cursor-pointer shadow-sm"
+                    :aria-label="`Посмотреть, как выглядит блок ${entry.title}`"
+                    @click="detail = entry"
+                  />
                   <button
                     type="button"
                     :title="entry.block.type"
@@ -215,12 +253,20 @@ const EMPTY_HINT: Record<CatalogTab, string> = {
                     @click="pick(entry, $event)"
                   >
                     <img
-                      v-if="entry.block.preview"
-                      :src="entry.block.preview"
+                      v-if="previewFor(entry)"
+                      :src="previewFor(entry)!"
                       :alt="`Превью блока ${entry.title}`"
                       loading="lazy"
                       class="h-24 w-full rounded border border-default object-cover object-top"
+                      @error="markFailed(entry)"
                     >
+                    <!-- без картинки: плитка с иконкой категории, чтобы карточки были одной высоты -->
+                    <span
+                      v-else
+                      class="flex h-24 w-full items-center justify-center rounded border border-dashed border-default bg-elevated/40 text-muted"
+                    >
+                      <UIcon :name="CATEGORY_ICONS[entry.block.category] ?? 'i-lucide-box'" class="size-8" />
+                    </span>
                     <span class="flex items-start gap-2">
                       <UIcon
                         :name="CATEGORY_ICONS[entry.block.category] ?? 'i-lucide-box'"
@@ -249,6 +295,49 @@ const EMPTY_HINT: Record<CatalogTab, string> = {
               </ul>
             </section>
           </div>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="detailOpen"
+    :title="detail?.title ?? ''"
+    :description="detail ? `${CATEGORY_LABELS[detail.block.category] ?? detail.block.category} · ${detail.group}` : ''"
+    :ui="{ content: 'max-w-3xl' }"
+  >
+    <template #body>
+      <div v-if="detail" class="space-y-4">
+        <img
+          v-if="previewFor(detail)"
+          :src="previewFor(detail)!"
+          :alt="`Так выглядит блок ${detail.title}`"
+          class="max-h-[60vh] w-full rounded-md border border-default object-contain object-top"
+          @error="markFailed(detail)"
+        >
+        <div
+          v-else
+          class="flex h-48 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-default bg-elevated/40 text-center text-muted"
+        >
+          <UIcon :name="CATEGORY_ICONS[detail.block.category] ?? 'i-lucide-box'" class="size-10" />
+          <p class="text-sm">
+            Картинки для этого блока пока нет.
+          </p>
+          <p class="px-6 text-xs">
+            Добавьте блок на страницу и откройте «Предпросмотр»: там будет видно, как он выглядит на сайте.
+          </p>
+        </div>
+
+        <p v-if="detail.block.description" class="text-sm text-default">
+          {{ detail.block.description }}
+        </p>
+        <p v-if="detail.block.readonly" class="text-xs text-muted">
+          Содержимое этого блока не редактируется: его можно только показывать, скрывать и переставлять.
+        </p>
+
+        <div class="flex justify-end gap-2">
+          <UButton label="Закрыть" color="neutral" variant="ghost" class="cursor-pointer" @click="detail = null" />
+          <UButton label="Добавить на страницу" icon="i-lucide-plus" class="cursor-pointer" @click="addFromDetail" />
         </div>
       </div>
     </template>

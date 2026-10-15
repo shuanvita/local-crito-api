@@ -7,6 +7,11 @@ export interface ProjectSummary {
   /** Адрес вебхука сайта для сброса кэша. */
   revalidateUrl: string | null
   /**
+   * Адрес сайта без пути и хвостового слэша (`https://nuxt.rucode.net`): по нему админка показывает
+   * предпросмотр страницы и ссылку «Открыть на сайте». null, пока не задан.
+   */
+  siteUrl: string | null
+  /**
    * Номер счётчика Яндекс Метрики сайта: справка для менеджеров, задаётся разработчиками.
    * Публичный API его не отдаёт: сайт подключает счётчик в своём коде.
    */
@@ -34,6 +39,8 @@ export interface CreateProjectRequest {
   name: string
   defaultLocale?: string
   revalidateUrl?: string
+  /** Адрес сайта для предпросмотра: `https://` (для localhost допустим `http://`), без пути. */
+  siteUrl?: string
   /** Только цифры, до 12 знаков. */
   metrikaCounterId?: string
   /** Хранится в БД зашифрованным и назад не возвращается. */
@@ -41,13 +48,14 @@ export interface CreateProjectRequest {
 }
 
 /**
- * `PATCH /projects/:project` (суперадмин). Пустая строка в `revalidateUrl`, `revalidateSecret`
+ * `PATCH /projects/:project` (суперадмин). Пустая строка в `revalidateUrl`, `siteUrl`, `revalidateSecret`
  * и `metrikaCounterId` очищает значение.
  */
 export interface UpdateProjectRequest {
   name?: string
   defaultLocale?: string
   revalidateUrl?: string
+  siteUrl?: string
   metrikaCounterId?: string
   revalidateSecret?: string
 }

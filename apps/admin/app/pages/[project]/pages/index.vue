@@ -99,17 +99,9 @@ const titleCell = (item: PageListItem) => h('div', { class: 'min-w-0' }, [
 
 const NO_TITLE = 'Без заголовка'
 
-// Адрес сайта в проекте не хранится отдельно: берём origin вебхука (`https://site/api/revalidate`),
-// он всегда на том же сайте. Без вебхука ссылку «Открыть на сайте» не показываем.
-const siteOrigin = computed(() => {
-  try {
-    return current.value?.revalidateUrl ? new URL(current.value.revalidateUrl).origin : null
-  } catch {
-    return null
-  }
-})
-// Главная хранится как `/index`, а на сайте открывается по `/`.
-const siteUrl = (slug: string) => siteOrigin.value ? `${siteOrigin.value}${slug === '/index' ? '/' : slug}` : null
+// Адрес сайта: `siteUrl` проекта, а если не задан, origin вебхука. Без обоих ссылку «Открыть на сайте» не показываем.
+const origin = computed(() => siteOrigin(current.value))
+const siteUrl = (slug: string) => pageSiteUrl(origin.value, slug)
 
 const pageColumns = computed<TableColumn<PageListItem>[]>(() => [
   {

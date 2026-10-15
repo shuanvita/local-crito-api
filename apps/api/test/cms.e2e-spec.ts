@@ -684,3 +684,38 @@ describe('номер счётчика Яндекс Метрики', () => {
     expect(cleared.metrikaCounterId).toBeNull();
   });
 });
+
+describe('адрес сайта для предпросмотра', () => {
+  it('задаёт суперадмин, хвостовой слэш убирается, менеджер видит значение, пустая строка очищает', async () => {
+    await http.patch('/projects/rucode', admin).send({ siteUrl: 'https://nuxt.rucode.net/' }).expect(200);
+
+    const manager = await ctx.login('site-url-manager@e2e.test', { grants: [{ project: 'rucode', scope: 'project' }] });
+    const project = await http.get('/projects/rucode', manager).expect(200);
+    expect(project.body.siteUrl).toBe('https://nuxt.rucode.net');
+
+    await http.patch('/projects/rucode', manager).send({ siteUrl: 'https://evil.example' }).expect(403);
+
+    await http.patch('/projects/rucode', admin).send({ siteUrl: 'http://localhost:3200' }).expect(200);
+    await http.patch('/projects/rucode', admin).send({ siteUrl: '' }).expect(200);
+    const cleared = await http.get('/projects/rucode', admin).expect(200);
+    expect(cleared.body.siteUrl).toBeNull();
+  });
+
+  it('принимает только http(s)-адрес без пути', async () => {
+    await http.patch('/projects/rucode', admin).send({ siteUrl: 'https://nuxt.rucode.net' }).expect(200);
+    // Адрес идёт в iframe и ссылки админки: javascript:, пути и открытый http не проходят.
+    for (const bad of [
+      'javascript:alert(1)',
+      'ftp://site.test',
+      'http://site.test',
+      'https://site.test/path',
+      'https://user@site.test',
+      'https://site.test?x=1',
+      'not a url',
+    ]) {
+      await http.patch('/projects/rucode', admin).send({ siteUrl: bad }).expect(400);
+    }
+    const unchanged = await ctx.prisma.project.findUniqueOrThrow({ where: { slug: 'rucode' } });
+    expect(unchanged.siteUrl).toBe('https://nuxt.rucode.net');
+  });
+});

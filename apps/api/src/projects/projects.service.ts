@@ -8,6 +8,11 @@ import { CreateProjectDto, UpdateProjectDto } from './projects.dto.js';
 
 export const hashKey = (key: string) => createHash('sha256').update(key).digest('hex');
 
+/** Убирает хвостовой слэш: админка сама добавляет путь страницы. */
+function normalizeSiteUrl(value: string | undefined): string | undefined {
+  return value?.replace(/\/+$/, '');
+}
+
 /** Поля проекта, безопасные для отдачи в админку (без секретов). */
 const publicSelect = {
   id: true,
@@ -15,6 +20,7 @@ const publicSelect = {
   name: true,
   defaultLocale: true,
   revalidateUrl: true,
+  siteUrl: true,
   metrikaCounterId: true,
   manifestHash: true,
   createdAt: true,
@@ -57,6 +63,7 @@ export class ProjectsService {
         name: dto.name,
         defaultLocale: dto.defaultLocale,
         revalidateUrl: dto.revalidateUrl,
+        siteUrl: normalizeSiteUrl(dto.siteUrl),
         metrikaCounterId: dto.metrikaCounterId,
         revalidateSecret: this.encryptSecret(dto.revalidateSecret),
         ciKeyHash: hashKey(ciKey),
@@ -66,7 +73,7 @@ export class ProjectsService {
     return { project: await this.withAccess(principal, project), ciKey };
   }
 
-  /** Меняет настройки проекта. Пустая строка в revalidateUrl, revalidateSecret или metrikaCounterId очищает значение. */
+  /** Меняет настройки проекта. Пустая строка в revalidateUrl, siteUrl, revalidateSecret или metrikaCounterId очищает значение. */
   async update(principal: Principal, slug: string, dto: UpdateProjectDto) {
     this.access.assertSuperAdmin(principal);
     const { count } = await this.prisma.project.updateMany({
@@ -75,6 +82,7 @@ export class ProjectsService {
         name: dto.name,
         defaultLocale: dto.defaultLocale,
         revalidateUrl: dto.revalidateUrl === undefined ? undefined : dto.revalidateUrl || null,
+        siteUrl: dto.siteUrl === undefined ? undefined : normalizeSiteUrl(dto.siteUrl) || null,
         metrikaCounterId: dto.metrikaCounterId === undefined ? undefined : dto.metrikaCounterId || null,
         revalidateSecret:
           dto.revalidateSecret === undefined ? undefined : (this.encryptSecret(dto.revalidateSecret) ?? null),

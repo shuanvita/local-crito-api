@@ -4,7 +4,7 @@
  *
  *   npm run build -w @crito/api
  *   node apps/api/dist/cli/create-project.main.js --slug rucode --name RuCode \
- *     [--revalidate-url https://site/api/revalidate] [--revalidate-secret <секрет>] [--metrika-counter-id 12345678]
+ *     [--revalidate-url https://site/api/revalidate] [--site-url https://site] [--revalidate-secret <секрет>] [--metrika-counter-id 12345678]
  *
  * Работает напрямую с БД через сервисы приложения (без HTTP и входа): запускается оператором на сервере.
  * Ключ CI печатается один раз, в БД хранится только его хеш.
@@ -24,6 +24,7 @@ const { values } = parseArgs({
     name: { type: 'string' },
     'default-locale': { type: 'string' },
     'revalidate-url': { type: 'string' },
+    'site-url': { type: 'string' },
     'revalidate-secret': { type: 'string' },
     'metrika-counter-id': { type: 'string' },
   },
@@ -31,7 +32,7 @@ const { values } = parseArgs({
 
 if (!values.slug || !values.name) {
   console.error(
-    'Использование: --slug <slug> --name <название> [--default-locale ru] [--revalidate-url <url>] [--revalidate-secret <секрет>] [--metrika-counter-id <номер>]',
+    'Использование: --slug <slug> --name <название> [--default-locale ru] [--revalidate-url <url>] [--site-url <url>] [--revalidate-secret <секрет>] [--metrika-counter-id <номер>]',
   );
   process.exit(2);
 }
@@ -41,6 +42,7 @@ const dto = Object.assign(new CreateProjectDto(), {
   name: values.name,
   defaultLocale: values['default-locale'],
   revalidateUrl: values['revalidate-url'],
+  siteUrl: values['site-url'],
   revalidateSecret: values['revalidate-secret'],
   metrikaCounterId: values['metrika-counter-id'],
 });

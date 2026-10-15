@@ -11,6 +11,8 @@ const logoSrc = `${assetBase}/logo.png`
 const logoWhiteSrc = `${assetBase}/logo-white.png`
 
 const close = () => { open.value = false }
+// Настройки проекта видит только администратор админки (права всё равно проверяет API).
+const { data: me } = useMe()
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
@@ -48,7 +50,15 @@ const links = computed<NavigationMenuItem[][]>(() => [
           icon: 'i-lucide-image',
           to: `/${slug.value}/media`,
           onSelect: close
-        }
+        },
+        ...(me.value?.isSuperAdmin
+          ? [{
+              label: 'Настройки',
+              icon: 'i-lucide-settings',
+              to: `/${slug.value}/settings`,
+              onSelect: close
+            }]
+          : [])
       ]]
     : [])
 ])

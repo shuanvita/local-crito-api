@@ -46,15 +46,38 @@ const metrikaCounter = computed(() => {
   return page.value?.slug === '/index' ? { id: DEMO_METRIKA_COUNTER_ID, demo: true } : { id: null, demo: false }
 })
 
-// Адрес сайта берём как origin вебхука проекта (отдельного поля нет); главная `/index` открывается по `/`.
-const siteUrl = computed(() => {
-  if (!page.value || !current.value?.revalidateUrl) return null
+// Адрес страницы на сайте: `siteUrl` проекта, а если не задан, origin вебхука; главная `/index` открывается по `/`.
+const origin = computed(() => siteOrigin(current.value))
+const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value.slug) : null)
+
+// --- предпросмотр ---
+// Справа от формы на широком экране, на узком открывается из шапки поверх страницы.
+const PREVIEW_STORAGE_KEY = 'crito:page-preview'
+const wide = useMediaQuery('(min-width: 1280px)')
+const previewOpen = ref(true)
+const previewSlideover = ref(false)
+const previewReload = ref(0)
+
+onMounted(() => {
   try {
-    return `${new URL(current.value.revalidateUrl).origin}${page.value.slug === '/index' ? '/' : page.value.slug}`
+    previewOpen.value = localStorage.getItem(PREVIEW_STORAGE_KEY) !== 'closed'
   } catch {
-    return null
+    // Хранилище недоступно: панель остаётся открытой.
   }
 })
+
+function togglePreview() {
+  if (!wide.value) {
+    previewSlideover.value = true
+    return
+  }
+  previewOpen.value = !previewOpen.value
+  try {
+    localStorage.setItem(PREVIEW_STORAGE_KEY, previewOpen.value ? 'open' : 'closed')
+  } catch {
+    // Только удобство: без хранилища выбор не запоминается.
+  }
+}
 
 // --- черновик ---
 const draft = ref<Draft>()
@@ -149,6 +172,7 @@ async function save() {
       body: { version: baseVersion.value, ...toPayload(draft.value) } satisfies UpdatePageRequest
     })
     load(saved)
+    previewReload.value++
     toast.add({ title: `Сохранено, версия ${saved.version}`, color: 'success' })
   } catch (err) {
     if ((err as { statusCode?: number }).statusCode === 409) conflict.value = true
@@ -220,6 +244,17 @@ useEventListener(window, 'beforeunload', (event) => {
             <UIcon name="i-lucide-check" />
             Сохранено
           </span>
+          <UTooltip :text="wide && previewOpen ? 'Скрыть предпросмотр' : 'Показать предпросмотр'">
+            <UButton
+              icon="i-lucide-eye"
+              label="Предпросмотр"
+              color="neutral"
+              :variant="wide && previewOpen ? 'soft' : 'ghost'"
+              :aria-pressed="wide && previewOpen"
+              class="cursor-pointer"
+              @click="togglePreview"
+            />
+          </UTooltip>
           <UTooltip text="История версий">
             <UButton icon="i-lucide-history" color="neutral" variant="ghost" aria-label="История версий" class="cursor-pointer" @click="revisionsOpen = true" />
           </UTooltip>
@@ -271,7 +306,10 @@ useEventListener(window, 'beforeunload', (event) => {
           :actions="[{ label: 'Загрузить актуальную версию', color: 'neutral', variant: 'subtle', onClick: reload }]"
         />
 
-        <div class="grid items-start gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
+        <div
+          class="grid items-start gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]"
+          :class="previewOpen && 'xl:grid-cols-[20rem_minmax(0,1fr)_minmax(24rem,36rem)]'"
+        >
           <!-- список блоков: на десктопе закреплён и прокручивается сам, форма справа не уезжает -->
           <aside class="space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:border-r lg:border-default lg:pr-4">
             <button
@@ -453,12 +491,34 @@ useEventListener(window, 'beforeunload', (event) => {
               />
             </template>
           </section>
+
+          <!-- предпросмотр: закреплён, прокручивается сама страница в рамке, а не панель -->
+          <aside
+            v-if="wide && previewOpen"
+            class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
+          >
+            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+          </aside>
         </div>
+
+        <!-- на узком экране предпросмотр открывается поверх страницы -->
+        <USlideover
+          v-if="!wide"
+          v-model:open="previewSlideover"
+          title="Предпросмотр"
+          description="Так страница выглядит на сайте."
+          :ui="{ content: 'max-w-xl', body: 'h-full' }"
+        >
+          <template #body>
+            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+          </template>
+        </USlideover>
 
         <EditorBlockCatalogModal
           v-model:open="catalogOpen"
           :blocks="manifest?.blocks ?? []"
           :project="project"
+          :site-origin="origin"
           :page-slug="page?.slug ?? ''"
           :used-types="draft.blocks.map(block => block.type)"
           @add="addBlock"

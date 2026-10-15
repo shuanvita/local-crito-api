@@ -18,6 +18,8 @@ model Project {
   /// URL вебхука сайта, который сбрасывает кэш (POST, заголовок x-revalidate-secret).
   revalidateUrl    String?
   revalidateSecret String?
+  /// Адрес сайта без пути: админка показывает по нему предпросмотр страниц.
+  siteUrl          String?
   /// Номер счётчика Яндекс Метрики: справка для менеджеров, в публичный API не отдаётся.
   metrikaCounterId String?
   /// SHA-256 ключа, которым CI публикует манифест блоков.
