@@ -455,7 +455,14 @@ useEventListener(window, 'beforeunload', (event) => {
           </section>
         </div>
 
-        <EditorBlockCatalogModal v-model:open="catalogOpen" :blocks="manifest?.blocks ?? []" @add="addBlock" />
+        <EditorBlockCatalogModal
+          v-model:open="catalogOpen"
+          :blocks="manifest?.blocks ?? []"
+          :project="project"
+          :page-slug="page?.slug ?? ''"
+          :used-types="draft.blocks.map(block => block.type)"
+          @add="addBlock"
+        />
         <EditorRevisionsSlideover
           v-model:open="revisionsOpen"
           :project="project"

@@ -51,6 +51,19 @@ export interface ManifestBlock {
   aliases: { page?: string, type: string }[]
   /** JSON Schema поля `data`. Есть у всех блоков, кроме `readonly`. */
   schema?: JsonSchema
+  /**
+   * Откуда блок: `library` (универсальный блок UI-библиотеки) или `project` (блок конкретного
+   * раздела сайта). Без поля считается `project`.
+   */
+  origin?: 'library' | 'project'
+  /** Раздел или событие для группировки в каталоге: «AI Champ», «Премия 2025». */
+  group?: string
+  /** Короткое описание для карточки каталога. */
+  description?: string
+  /** Адрес картинки-превью (абсолютный или относительный). */
+  preview?: string
+  /** Маски адресов страниц, где блок рекомендован: `/ai-champ/*`, `/index`. `*` в конце значит «любой хвост». */
+  pages?: string[]
 }
 
 export interface BlockManifest {

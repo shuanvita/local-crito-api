@@ -83,3 +83,41 @@ describe('ManifestService.validateBlocks', () => {
     );
   });
 });
+
+describe('ManifestService.set: поля каталога блоков', () => {
+  function createSetService() {
+    const update = vi.fn(async () => ({}));
+    const prisma = { project: { update } } as unknown as PrismaService;
+    return { service: new ManifestService(prisma), update };
+  }
+  const withBlock = (extra: Record<string, unknown>): BlockManifest => ({
+    ...manifest,
+    blocks: [{ ...manifest.blocks[1]!, ...extra }],
+  });
+
+  it('сохраняет origin, group, description, preview и pages', async () => {
+    const { service, update } = createSetService();
+    await service.set(
+      'rucode',
+      withBlock({
+        origin: 'library',
+        group: 'AI Champ',
+        description: 'Устаревший блок',
+        preview: '/previews/legacy.png',
+        pages: ['/ai-champ/*'],
+      }),
+    );
+    expect(update).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['origin', { origin: 'other' }],
+    ['group', { group: 1 }],
+    ['pages: не массив', { pages: 'x' }],
+    ['pages: не строки', { pages: [1] }],
+  ])('отклоняет неверное поле: %s', async (_name, extra) => {
+    const { service, update } = createSetService();
+    await expect(service.set('rucode', withBlock(extra))).rejects.toThrow('Блок legacy');
+    expect(update).not.toHaveBeenCalled();
+  });
+});

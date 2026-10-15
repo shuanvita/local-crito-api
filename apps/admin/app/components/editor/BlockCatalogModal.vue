@@ -1,44 +1,120 @@
 <script setup lang="ts">
 import type { ManifestBlock } from '@crito/contract'
+import {
+  CATEGORY_ICONS,
+  groupEntries,
+  matchesQuery,
+  pushRecent,
+  suggestedForPage,
+  toEntry
+} from '~/utils/blockCatalog'
+import type { CatalogEntry, CatalogTab } from '~/utils/blockCatalog'
 
-const props = defineProps<{ blocks: ManifestBlock[] }>()
+const props = defineProps<{
+  blocks: ManifestBlock[]
+  /** Slug проекта: недавние блоки хранятся отдельно по проектам. */
+  project: string
+  /** Адрес редактируемой страницы: по нему подбираются блоки вкладки «Для этой страницы». */
+  pageSlug: string
+  /** Типы блоков, уже стоящих на странице. */
+  usedTypes: string[]
+}>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ add: [block: ManifestBlock] }>()
 
-const CATEGORY_LABELS: Record<string, string> = {
-  hero: 'Главный экран',
-  content: 'Контент',
-  media: 'Медиа',
-  people: 'Люди',
-  cards: 'Карточки',
-  faq: 'Вопросы и ответы',
-  cta: 'Призыв к действию',
-  partners: 'Партнёры',
-  contacts: 'Контакты'
+const search = ref('')
+const tab = ref<CatalogTab>('all')
+const activeGroup = ref<string | null>(null)
+const recent = ref<string[]>([])
+const justAdded = ref<string | null>(null)
+
+const storageKey = computed(() => `crito:recent-blocks:${props.project}`)
+
+function readRecent(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey.value) ?? '[]')
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
 }
 
-const search = ref('')
-
-const groups = computed(() => {
-  const query = search.value.trim().toLowerCase()
-  const matching = props.blocks.filter(block =>
-    !query || block.title.toLowerCase().includes(query) || block.type.toLowerCase().includes(query)
-  )
-  const byCategory = new Map<string, ManifestBlock[]>()
-  for (const block of matching) {
-    byCategory.set(block.category, [...(byCategory.get(block.category) ?? []), block])
+function writeRecent(value: string[]) {
+  try {
+    localStorage.setItem(storageKey.value, JSON.stringify(value))
+  } catch {
+    // Хранилище недоступно: недавние живут только до закрытия окна.
   }
-  return [...byCategory.entries()].map(([category, blocks]) => ({
-    category,
-    label: CATEGORY_LABELS[category] ?? category,
-    blocks
-  }))
+}
+
+const entries = computed(() => props.blocks.map(toEntry))
+const suggestedTypes = computed(() =>
+  new Set(suggestedForPage(props.blocks, props.pageSlug, props.usedTypes).map(block => block.type))
+)
+
+const tabEntries = computed<Record<CatalogTab, CatalogEntry[]>>(() => ({
+  page: entries.value.filter(entry => suggestedTypes.value.has(entry.block.type)),
+  all: entries.value.filter(entry => !entry.library),
+  library: entries.value.filter(entry => entry.library)
+}))
+
+const tabItems = computed(() => {
+  const items: { label: string, value: CatalogTab, icon: string }[] = [
+    { label: `Для этой страницы (${tabEntries.value.page.length})`, value: 'page', icon: 'i-lucide-file-check' },
+    { label: `Все блоки сайта (${tabEntries.value.all.length})`, value: 'all', icon: 'i-lucide-layers' }
+  ]
+  // Библиотека нужна не каждому сайту: вкладка появляется, только если сайт пометил блоки origin: 'library'.
+  if (tabEntries.value.library.length) {
+    items.push({ label: `Библиотека UI (${tabEntries.value.library.length})`, value: 'library', icon: 'i-lucide-component' })
+  }
+  return items
 })
 
-function pick(block: ManifestBlock) {
-  emit('add', block)
-  open.value = false
+watch(open, (isOpen) => {
+  if (!isOpen) return
+  recent.value = readRecent()
   search.value = ''
+  activeGroup.value = null
+  justAdded.value = null
+  tab.value = tabEntries.value.page.length ? 'page' : 'all'
+})
+
+// Смена вкладки: выбранная группа может отсутствовать в новой.
+watch(tab, () => {
+  activeGroup.value = null
+})
+
+const visible = computed(() => tabEntries.value[tab.value].filter(entry => matchesQuery(entry, search.value)))
+const groups = computed(() => groupEntries(visible.value))
+const shownGroups = computed(() =>
+  activeGroup.value ? groups.value.filter(group => group.name === activeGroup.value) : groups.value
+)
+
+const recentEntries = computed(() => {
+  if (search.value.trim() || activeGroup.value) return []
+  const byType = new Map(tabEntries.value[tab.value].map(entry => [entry.block.type, entry]))
+  return recent.value.flatMap((type) => {
+    const entry = byType.get(type)
+    return entry ? [entry] : []
+  })
+})
+
+function pick(entry: CatalogEntry, event: MouseEvent) {
+  emit('add', entry.block)
+  recent.value = pushRecent(recent.value, entry.block.type)
+  writeRecent(recent.value)
+  if (event.shiftKey) {
+    // Shift+клик: окно остаётся, чтобы добавить несколько блоков подряд.
+    justAdded.value = entry.block.type
+    return
+  }
+  open.value = false
+}
+
+const EMPTY_HINT: Record<CatalogTab, string> = {
+  page: 'Для этой страницы нет подходящих блоков. Откройте «Все блоки сайта».',
+  all: 'Ничего не найдено',
+  library: 'В библиотеке ничего не найдено'
 }
 </script>
 
@@ -46,35 +122,134 @@ function pick(block: ManifestBlock) {
   <UModal
     v-model:open="open"
     title="Добавить блок"
-    description="Выберите тип блока из каталога сайта."
-    :ui="{ content: 'max-w-2xl' }"
+    description="Выберите тип блока. Shift + клик добавляет блок и оставляет окно открытым."
+    :ui="{ content: 'max-w-5xl' }"
   >
     <template #body>
-      <div class="space-y-4">
-        <UInput v-model="search" icon="i-lucide-search" placeholder="Поиск по названию" class="w-full" autofocus />
+      <div class="flex h-[70vh] flex-col gap-3">
+        <UTabs v-model="tab" :items="tabItems" :content="false" size="sm" class="shrink-0" />
+        <UInput
+          v-model="search"
+          icon="i-lucide-search"
+          placeholder="Поиск по названию, событию или описанию"
+          class="w-full shrink-0"
+          autofocus
+        >
+          <template v-if="search" #trailing>
+            <UButton
+              icon="i-lucide-x"
+              size="xs"
+              color="neutral"
+              variant="link"
+              aria-label="Очистить поиск"
+              class="cursor-pointer"
+              @click="search = ''"
+            />
+          </template>
+        </UInput>
 
-        <p v-if="!groups.length" class="text-center text-sm text-muted">
-          Ничего не найдено
-        </p>
+        <div class="flex min-h-0 flex-1 gap-4">
+          <nav v-if="groups.length > 1" class="hidden w-48 shrink-0 overflow-y-auto sm:block" aria-label="Группы блоков">
+            <ul class="space-y-0.5">
+              <li>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-elevated"
+                  :class="activeGroup === null ? 'bg-elevated font-medium text-highlighted' : 'text-muted'"
+                  @click="activeGroup = null"
+                >
+                  <span>Все</span>
+                  <span class="text-xs">{{ visible.length }}</span>
+                </button>
+              </li>
+              <li v-for="group in groups" :key="group.name">
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-elevated"
+                  :class="activeGroup === group.name ? 'bg-elevated font-medium text-highlighted' : 'text-muted'"
+                  @click="activeGroup = group.name"
+                >
+                  <span class="truncate">{{ group.name }}</span>
+                  <span class="text-xs">{{ group.entries.length }}</span>
+                </button>
+              </li>
+            </ul>
+          </nav>
 
-        <section v-for="group in groups" :key="group.category">
-          <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-            {{ group.label }}
-          </h3>
-          <ul class="grid gap-2 sm:grid-cols-2">
-            <li v-for="block in group.blocks" :key="block.type">
-              <button
-                type="button"
-                class="w-full rounded-md border border-default p-3 text-left transition hover:border-primary hover:bg-elevated/50"
-                @click="pick(block)"
-              >
-                <span class="block text-sm font-medium text-highlighted">{{ block.title }}</span>
-                <span class="block font-mono text-xs text-muted">{{ block.type }}</span>
-                <UBadge v-if="block.readonly" label="только включение/порядок" color="neutral" variant="subtle" size="sm" class="mt-1" />
-              </button>
-            </li>
-          </ul>
-        </section>
+          <div class="min-w-0 flex-1 space-y-5 overflow-y-auto pr-1">
+            <p v-if="!shownGroups.length" class="py-10 text-center text-sm text-muted">
+              {{ search.trim() ? 'Ничего не найдено' : EMPTY_HINT[tab] }}
+            </p>
+
+            <section v-if="recentEntries.length">
+              <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+                Недавно использованные
+              </h3>
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  v-for="entry in recentEntries"
+                  :key="entry.block.type"
+                  :label="entry.title"
+                  :title="entry.block.type"
+                  icon="i-lucide-history"
+                  size="sm"
+                  color="neutral"
+                  variant="outline"
+                  class="cursor-pointer"
+                  @click="pick(entry, $event)"
+                />
+              </div>
+            </section>
+
+            <section v-for="group in shownGroups" :key="group.name">
+              <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+                {{ group.name }}
+              </h3>
+              <ul class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <li v-for="entry in group.entries" :key="entry.block.type">
+                  <button
+                    type="button"
+                    :title="entry.block.type"
+                    class="flex h-full w-full cursor-pointer flex-col gap-2 rounded-md border p-3 text-left transition hover:border-primary hover:bg-elevated/50"
+                    :class="justAdded === entry.block.type ? 'border-primary bg-primary/5' : 'border-default'"
+                    @click="pick(entry, $event)"
+                  >
+                    <img
+                      v-if="entry.block.preview"
+                      :src="entry.block.preview"
+                      :alt="`Превью блока ${entry.title}`"
+                      loading="lazy"
+                      class="h-24 w-full rounded border border-default object-cover object-top"
+                    >
+                    <span class="flex items-start gap-2">
+                      <UIcon
+                        :name="CATEGORY_ICONS[entry.block.category] ?? 'i-lucide-box'"
+                        class="mt-0.5 size-4 shrink-0 text-muted"
+                      />
+                      <span class="min-w-0">
+                        <span class="block text-sm font-medium text-highlighted">{{ entry.title }}</span>
+                        <span v-if="entry.block.description" class="mt-0.5 line-clamp-2 block text-xs text-muted">
+                          {{ entry.block.description }}
+                        </span>
+                      </span>
+                    </span>
+                    <span v-if="entry.block.readonly || justAdded === entry.block.type" class="mt-auto flex gap-1">
+                      <UBadge
+                        v-if="entry.block.readonly"
+                        label="без редактирования"
+                        title="Блок без схемы: можно только включать, скрывать и переставлять"
+                        color="neutral"
+                        variant="subtle"
+                        size="sm"
+                      />
+                      <UBadge v-if="justAdded === entry.block.type" label="добавлен" color="primary" variant="subtle" size="sm" />
+                    </span>
+                  </button>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </div>
       </div>
     </template>
   </UModal>

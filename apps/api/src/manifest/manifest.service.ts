@@ -41,6 +41,7 @@ export class ManifestService {
     for (const block of manifest.blocks) {
       if (types.has(block.type)) throw new BadRequestException(`Дублируется type блока: ${block.type}`);
       types.add(block.type);
+      this.assertCatalogFields(block);
       if (block.schema) {
         try {
           ajv.compile(block.schema);
@@ -153,6 +154,25 @@ export class ManifestService {
     const entry = { hash: head.manifestHash, manifest, validators: new Map<string, ValidateFunction>() };
     this.cache.set(slug, entry);
     return entry;
+  }
+
+  /** Поля каталога блоков приходят из CI без DTO: проверяем вручную, чтобы мусор не попал в БД. */
+  private assertCatalogFields(block: BlockManifest['blocks'][number]) {
+    const fail = (message: string): never => {
+      throw new BadRequestException(`Блок ${block.type}: ${message}`);
+    };
+    if (block.origin !== undefined && block.origin !== 'library' && block.origin !== 'project') {
+      fail('origin должен быть "library" или "project"');
+    }
+    for (const field of ['group', 'description', 'preview'] as const) {
+      if (block[field] !== undefined && typeof block[field] !== 'string') fail(`${field} должен быть строкой`);
+    }
+    if (
+      block.pages !== undefined &&
+      (!Array.isArray(block.pages) || block.pages.some((mask) => typeof mask !== 'string'))
+    ) {
+      fail('pages должен быть массивом строк');
+    }
   }
 
   /** `x-field` и прочие подсказки редактора не входят в стандарт: отключаем strict-режим. */
