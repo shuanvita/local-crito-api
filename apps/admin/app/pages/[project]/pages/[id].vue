@@ -50,12 +50,25 @@ const metrikaCounter = computed(() => {
 const origin = computed(() => siteOrigin(current.value))
 const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value.slug) : null)
 
+// --- настройки страницы ---
+const analyticsOpen = ref(false)
+const headerConfigs = computed(() => manifest.value?.headerConfigs ?? [])
+const headerConfigOptions = computed(() => headerConfigItems(headerConfigs.value, draft.value?.headerConfig ?? ''))
+const descriptionLevelValue = computed(() => descriptionLevel(draft.value?.meta.description))
+const descriptionHint = computed(() => ({
+  empty: `Рекомендуем ${SEO_DESCRIPTION_MIN}–${SEO_DESCRIPTION_MAX} символов: коротко о том, что на странице. Пока пусто.`,
+  short: `Коротковато: лучше ${SEO_DESCRIPTION_MIN}–${SEO_DESCRIPTION_MAX} символов.`,
+  good: 'Хорошая длина.',
+  long: `Длиннее ${SEO_DESCRIPTION_MAX} символов: поисковик обрежет окончание.`
+})[descriptionLevelValue.value])
+
 // --- предпросмотр ---
 // Справа от формы на широком экране, на узком открывается из шапки поверх страницы.
 const PREVIEW_STORAGE_KEY = 'crito:page-preview'
 const wide = useMediaQuery('(min-width: 1280px)')
 const previewOpen = ref(true)
 const previewSlideover = ref(false)
+const previewExpanded = ref(false)
 const previewReload = ref(0)
 
 onMounted(() => {
@@ -258,7 +271,15 @@ useEventListener(window, 'beforeunload', (event) => {
             />
           </UTooltip>
           <UTooltip text="История версий">
-            <UButton icon="i-lucide-history" color="neutral" variant="ghost" aria-label="История версий" class="cursor-pointer" @click="revisionsOpen = true" />
+            <UButton
+              icon="i-lucide-history"
+              :label="wide ? 'История' : undefined"
+              color="neutral"
+              variant="ghost"
+              aria-label="История версий"
+              class="cursor-pointer"
+              @click="revisionsOpen = true"
+            />
           </UTooltip>
           <!-- сохранение = публикация: кнопка называет это прямо, чтобы её не принимали за черновик -->
           <UTooltip :text="dirty ? 'Сохранение сразу публикует страницу на сайте' : 'Нет изменений для публикации'">
@@ -313,7 +334,7 @@ useEventListener(window, 'beforeunload', (event) => {
 
         <div
           class="grid items-start gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]"
-          :class="previewOpen && 'xl:grid-cols-[20rem_minmax(0,1fr)_minmax(24rem,36rem)]'"
+          :class="previewOpen && 'xl:grid-cols-[20rem_minmax(0,1fr)_minmax(24rem,44rem)]'"
         >
           <!-- список блоков: на десктопе закреплён и прокручивается сам, форма справа не уезжает -->
           <aside class="space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:border-r lg:border-default lg:pr-4">
@@ -394,50 +415,67 @@ useEventListener(window, 'beforeunload', (event) => {
           </aside>
 
           <!-- правая панель -->
-          <section class="min-w-0 max-w-3xl space-y-4">
+          <section class="mx-auto w-full min-w-0 max-w-3xl space-y-4">
             <!-- настройки страницы: три секции, чтобы форма не была сплошной простынёй -->
             <template v-if="selected === 'page'">
               <h2 class="text-lg font-semibold text-highlighted">
                 Настройки страницы
               </h2>
 
-              <UCard>
-                <template #header>
-                  <h3 class="font-medium text-highlighted">
-                    Аналитика
-                  </h3>
-                </template>
-                <MetrikaCounter :counter-id="metrikaCounter.id" :demo="metrikaCounter.demo" />
-                <p class="mt-2 text-xs text-muted">
-                  Справка: счётчик общий для всего сайта и здесь не редактируется.
-                </p>
-              </UCard>
-
+              <!-- порядок по частоте правок: основное, SEO, соцсети; справочная аналитика в конце и свёрнута -->
               <UCard :ui="{ body: 'space-y-4' }">
                 <template #header>
                   <h3 class="font-medium text-highlighted">
                     Основное
                   </h3>
                 </template>
-                <UFormField label="Адрес" description="Адрес меняется только при создании страницы.">
+                <UFormField label="Адрес страницы" description="Адрес задаётся при создании страницы и потом не меняется.">
                   <UInput :model-value="page?.slug" disabled icon="i-lucide-lock" class="w-full font-mono" />
                 </UFormField>
-                <UFormField label="Ключ шапки и футера" description="Конфигурация шапки и футера на сайте (необязательно).">
-                  <UInput v-model="draft.headerConfig" class="w-full" />
+                <UFormField
+                  label="Оформление шапки и футера"
+                  :description="headerConfigs.length
+                    ? 'Как выглядят шапка и футер на этой странице. Если не уверены, оставьте как есть.'
+                    : 'Название набора шапки и футера на сайте, например home. Если не уверены, оставьте как есть.'"
+                >
+                  <!-- список приходит из манифеста сайта; у старых манифестов его нет, тогда ключ вводится текстом -->
+                  <USelect
+                    v-if="headerConfigs.length"
+                    :model-value="toHeaderConfigValue(draft.headerConfig)"
+                    :items="headerConfigOptions"
+                    class="w-full"
+                    @update:model-value="draft.headerConfig = fromHeaderConfigValue($event as string)"
+                  />
+                  <UInput v-else v-model="draft.headerConfig" placeholder="Как на сайте по умолчанию" class="w-full" />
                 </UFormField>
-                <USwitch v-model="draft.noFooterSpacing" label="Без отступа перед футером" />
+                <div class="space-y-1">
+                  <USwitch v-model="draft.noFooterSpacing" label="Прижать последний блок к футеру" />
+                  <p class="text-xs text-muted">
+                    Убирает пустой отступ между последним блоком и футером. Нужно, если последний блок сам заканчивается фоном.
+                  </p>
+                </div>
               </UCard>
 
               <UCard :ui="{ body: 'space-y-4' }">
                 <template #header>
                   <h3 class="font-medium text-highlighted">
-                    SEO
+                    Поиск (SEO)
                   </h3>
                 </template>
-                <UFormField label="Заголовок (title)" :hint="`${(draft.meta.title ?? '').length} / 60`">
+                <UFormField
+                  label="Заголовок страницы"
+                  description="Показывается в поиске и во вкладке браузера."
+                  :hint="`${(draft.meta.title ?? '').length} / ${SEO_TITLE_MAX}`"
+                  :ui="{ hint: (draft.meta.title ?? '').length > SEO_TITLE_MAX ? 'text-warning' : undefined }"
+                >
                   <UInput v-model="draft.meta.title" class="w-full" />
                 </UFormField>
-                <UFormField label="Описание (description)" :hint="`${(draft.meta.description ?? '').length} / 160`">
+                <UFormField
+                  label="Описание страницы"
+                  :description="descriptionHint"
+                  :hint="`${(draft.meta.description ?? '').length} / ${SEO_DESCRIPTION_MAX}`"
+                  :ui="{ hint: descriptionLevelValue === 'long' ? 'text-warning' : undefined, description: descriptionLevelValue === 'good' ? 'text-success' : undefined }"
+                >
                   <UTextarea v-model="draft.meta.description" :rows="3" class="w-full" />
                 </UFormField>
               </UCard>
@@ -448,15 +486,43 @@ useEventListener(window, 'beforeunload', (event) => {
                     Соцсети
                   </h3>
                 </template>
-                <UFormField label="Заголовок для соцсетей (og:title)">
-                  <UInput v-model="draft.meta.ogTitle" class="w-full" />
+                <UFormField label="Заголовок для соцсетей" description="Если оставить пустым, возьмём заголовок страницы из блока «Поиск».">
+                  <UInput v-model="draft.meta.ogTitle" :placeholder="draft.meta.title || 'Заголовок страницы'" class="w-full" />
                 </UFormField>
-                <UFormField label="Описание для соцсетей (og:description)">
-                  <UTextarea v-model="draft.meta.ogDescription" :rows="2" class="w-full" />
+                <UFormField label="Описание для соцсетей" description="Если оставить пустым, возьмём описание страницы.">
+                  <UTextarea v-model="draft.meta.ogDescription" :placeholder="draft.meta.description" :rows="2" class="w-full" />
                 </UFormField>
-                <UFormField label="Картинка для соцсетей (og:image)">
+                <UFormField label="Картинка для соцсетей" description="Рекомендуем 1200×630. Подставится в ссылку, когда страницей делятся.">
                   <EditorFieldImage v-model="draft.meta.ogImage" :project="project" />
                 </UFormField>
+              </UCard>
+
+              <!-- как это увидят: пересчитывается по мере ввода -->
+              <UCard>
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    Как это будет выглядеть
+                  </h3>
+                </template>
+                <EditorSeoPreview :meta="draft.meta" :site-url="siteUrl" :slug="page?.slug ?? ''" :origin="origin" />
+              </UCard>
+
+              <UCard>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+                  :aria-expanded="analyticsOpen"
+                  @click="analyticsOpen = !analyticsOpen"
+                >
+                  <span class="font-medium text-highlighted">Аналитика</span>
+                  <UIcon :name="analyticsOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="text-muted" />
+                </button>
+                <div v-if="analyticsOpen" class="mt-4">
+                  <MetrikaCounter :counter-id="metrikaCounter.id" :demo="metrikaCounter.demo" />
+                  <p class="mt-2 text-xs text-muted">
+                    Справка: счётчик общий для всего сайта и здесь не редактируется.
+                  </p>
+                </div>
               </UCard>
             </template>
 
@@ -515,7 +581,7 @@ useEventListener(window, 'beforeunload', (event) => {
             v-if="wide && previewOpen"
             class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
           >
-            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
           </aside>
         </div>
 
@@ -531,6 +597,18 @@ useEventListener(window, 'beforeunload', (event) => {
             <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
           </template>
         </USlideover>
+
+        <!-- крупный предпросмотр: на панели справа сайт сильно уменьшен, здесь его можно прочитать -->
+        <UModal
+          v-model:open="previewExpanded"
+          title="Как страница выглядит на сайте"
+          fullscreen
+          :ui="{ body: 'h-full' }"
+        >
+          <template #body>
+            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+          </template>
+        </UModal>
 
         <EditorBlockCatalogModal
           v-model:open="catalogOpen"

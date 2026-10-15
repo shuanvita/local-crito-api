@@ -8,7 +8,10 @@ const props = defineProps<{
   reloadKey: number
   /** Страница в корзине: на сайте её нет. */
   trashed?: boolean
+  /** Показывать кнопку «Развернуть» (в самой развёрнутой версии она не нужна). */
+  expandable?: boolean
 }>()
+const emit = defineEmits<{ expand: [] }>()
 
 type Device = 'desktop' | 'mobile'
 const device = ref<Device>('desktop')
@@ -68,6 +71,18 @@ watch(() => props.url, () => {
             @click="device = 'mobile'"
           />
         </UFieldGroup>
+        <UTooltip v-if="expandable" text="Развернуть на весь экран">
+          <UButton
+            icon="i-lucide-maximize-2"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Развернуть предпросмотр"
+            :disabled="!url"
+            class="cursor-pointer"
+            @click="emit('expand')"
+          />
+        </UTooltip>
         <UTooltip text="Обновить">
           <UButton
             icon="i-lucide-refresh-cw"
@@ -118,7 +133,7 @@ watch(() => props.url, () => {
       <!-- Состояние простыми словами: в превью всегда сохранённая версия, потому что сохранение = публикация. -->
       <p
         class="flex items-start gap-2 rounded-md px-3 py-2 text-xs"
-        :class="dirty ? 'bg-warning/10 text-warning' : 'bg-elevated text-muted'"
+        :class="dirty ? 'bg-warning/10 text-warning' : 'bg-elevated text-toned'"
       >
         <UIcon :name="dirty ? 'i-lucide-info' : 'i-lucide-check'" class="mt-0.5 size-4 shrink-0" />
         <span v-if="dirty">Показана опубликованная версия, без ваших правок. Нажмите «Опубликовать», и изменения появятся на сайте и здесь.</span>
@@ -135,7 +150,7 @@ watch(() => props.url, () => {
         </div>
         <!-- Рамка нужной ширины, уменьшенная целиком: на сайте срабатывают те же адаптивные правила, что у посетителя. -->
         <div
-          class="origin-top-left"
+          class="mx-auto origin-top-left"
           :style="{ width: `${WIDTHS[device]}px`, height: `${100 / scale}%`, transform: `scale(${scale})` }"
         >
           <iframe
@@ -149,7 +164,7 @@ watch(() => props.url, () => {
           />
         </div>
       </div>
-      <p class="text-xs text-muted">
+      <p class="text-xs text-toned">
         Ссылки и кнопки внутри предпросмотра работают как на сайте. Если картинка не появилась, нажмите «Обновить».
       </p>
     </template>

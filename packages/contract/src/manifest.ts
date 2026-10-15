@@ -66,9 +66,25 @@ export interface ManifestBlock {
   pages?: string[]
 }
 
+/** Вариант оформления шапки и футера страницы, который сайт умеет отрисовать. */
+export interface ManifestHeaderConfig {
+  /** Значение, которое сохраняется в `headerConfig` страницы и приходит на сайт. */
+  key: string
+  /** Название для редактора: «Главная», «Страницы чемпионата». */
+  title: string
+  /** Пояснение под названием: чем вариант отличается. */
+  description?: string
+}
+
 export interface BlockManifest {
   /** Slug проекта: должен совпадать с проектом в адресе запроса. */
   project: string
   version: string
   blocks: ManifestBlock[]
+  /**
+   * Допустимые значения `headerConfig` страницы. Без поля админка показывает ключ текстовым полем
+   * (старые манифесты работают как раньше). Сервер список не навязывает: страница с прежним ключом
+   * сохраняется, админка помечает такое значение как «нет в списке».
+   */
+  headerConfigs?: ManifestHeaderConfig[]
 }

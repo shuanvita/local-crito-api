@@ -9,7 +9,7 @@ export type { ContentBlock, ContentPage, ContentPageMeta } from './content.js'
 export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest } from './dictionaries.js'
 export type { ApiErrorBody } from './errors.js'
 export type { ExportFile } from './import.js'
-export type { BlockManifest, JsonSchema, ManifestBlock } from './manifest.js'
+export type { BlockManifest, JsonSchema, ManifestBlock, ManifestHeaderConfig } from './manifest.js'
 export type { CurrentUser } from './me.js'
 export type { MediaItem } from './media.js'
 export type {

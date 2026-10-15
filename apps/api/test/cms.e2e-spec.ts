@@ -210,6 +210,19 @@ describe('манифест блоков', () => {
     expect(Object.keys(info.schema.properties)).toEqual(['title', 'body', 'cta']);
   });
 
+  it('принимает и отдаёт headerConfigs, отклоняет повторы ключа', async () => {
+    const dup = { ...manifest, headerConfigs: [{ key: 'home', title: 'A' }, { key: 'home', title: 'B' }] };
+    await http.put('/projects/rucode/manifest').set('x-ci-key', ciKey).send(dup).expect(400);
+
+    const withConfigs = { ...manifest, headerConfigs: [{ key: 'home', title: 'Главная' }] };
+    await http.put('/projects/rucode/manifest').set('x-ci-key', ciKey).send(withConfigs).expect(200);
+    const res = await http.get('/projects/rucode/manifest', admin).expect(200);
+    expect(res.body.headerConfigs).toEqual([{ key: 'home', title: 'Главная' }]);
+
+    // Возвращаем манифест без списка, чтобы не влиять на остальные сценарии.
+    await http.put('/projects/rucode/manifest').set('x-ci-key', ciKey).send(manifest).expect(200);
+  });
+
   it('смена ключа CI отключает старый ключ', async () => {
     const rotated = await http.post('/projects/rucode/ci-key', admin).expect(201);
     await http.put('/projects/rucode/manifest').set('x-ci-key', ciKey).send(manifest).expect(401);
