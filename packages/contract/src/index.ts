@@ -22,6 +22,15 @@ export type {
   UpdatePageRequest,
 } from './pages.js'
 export type {
+  PreviewChannel,
+  PreviewDraftMessage,
+  PreviewDraftPage,
+  PreviewMessageToAdmin,
+  PreviewMessageToSite,
+  PreviewReadyMessage,
+  PreviewSelectMessage,
+} from './preview.js'
+export type {
   CreateProjectRequest,
   CreateProjectResponse,
   ProjectSummary,

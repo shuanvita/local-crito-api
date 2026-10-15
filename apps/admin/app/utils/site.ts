@@ -1,3 +1,11 @@
+import type {
+  PreviewChannel,
+  PreviewDraftMessage,
+  PreviewDraftPage,
+  PreviewReadyMessage,
+  PreviewSelectMessage
+} from '@crito/contract'
+
 /** Адрес сайта проекта: `siteUrl`, а если не задан, origin вебхука (как было до появления поля). */
 export function siteOrigin(project: { siteUrl?: string | null, revalidateUrl?: string | null } | null | undefined): string | null {
   if (!project) return null
@@ -17,7 +25,7 @@ export function pageSiteUrl(origin: string | null, slug: string): string | null 
 
 /** Параметр, по которому сайт включает приём черновика от админки (только внутри iframe). */
 export const PREVIEW_QUERY = 'crito-preview'
-const PREVIEW_CHANNEL = 'crito-preview'
+const PREVIEW_CHANNEL: PreviewChannel = 'crito-preview'
 
 /** Адрес страницы для iframe предпросмотра; режим «с правками» включается параметром. */
 export function previewFrameUrl(url: string | null, withDraft: boolean): string | null {
@@ -31,21 +39,21 @@ export function previewFrameUrl(url: string | null, withDraft: boolean): string 
   }
 }
 
-/** Черновик для сайта: только то, что видит посетитель (id и порядок блоков, настройки шапки, SEO). */
-export interface PreviewDraft {
-  blocks: unknown[]
-  meta?: Record<string, string>
-  headerConfig?: string
-  noFooterSpacing?: boolean
-}
+/** Черновик для сайта: то, что видит посетитель (блоки, настройки шапки, SEO). Формат в `@crito/contract`. */
+export type PreviewDraft = PreviewDraftPage
 
-/** Сообщение сайту. Формат согласован с `usePreviewBridge` в репозитории сайта. */
-export function draftMessage(page: PreviewDraft) {
+/** Сообщение сайту с черновиком. Формат согласован с `usePreviewBridge` в репозитории сайта. */
+export function draftMessage(page: PreviewDraft): PreviewDraftMessage {
   return { source: PREVIEW_CHANNEL, type: 'draft', page }
 }
 
+/** Сообщение сайту: какой блок выбран в редакторе (null: ни один, выбраны настройки страницы). */
+export function selectMessage(blockId: string | null): PreviewSelectMessage {
+  return { source: PREVIEW_CHANNEL, type: 'select', blockId }
+}
+
 /** Сообщение «страница готова принять черновик», которое присылает сайт. */
-export function isReadyMessage(data: unknown): boolean {
+export function isReadyMessage(data: unknown): data is PreviewReadyMessage {
   if (typeof data !== 'object' || data === null) return false
   const message = data as { source?: unknown, type?: unknown }
   return message.source === PREVIEW_CHANNEL && message.type === 'ready'

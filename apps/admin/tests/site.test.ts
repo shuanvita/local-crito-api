@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { draftMessage, isReadyMessage, pageSiteUrl, previewFrameUrl, resolvePreview, siteOrigin } from '../app/utils/site'
+import { draftMessage, isReadyMessage, pageSiteUrl, previewFrameUrl, resolvePreview, selectMessage, siteOrigin } from '../app/utils/site'
 
 describe('предпросмотр с правками', () => {
   it('добавляет параметр только в режиме черновика', () => {
@@ -10,6 +10,8 @@ describe('предпросмотр с правками', () => {
 
   it('формат сообщений совпадает с сайтом', () => {
     expect(draftMessage({ blocks: [] })).toEqual({ source: 'crito-preview', type: 'draft', page: { blocks: [] } })
+    expect(selectMessage('b1')).toEqual({ source: 'crito-preview', type: 'select', blockId: 'b1' })
+    expect(selectMessage(null)).toEqual({ source: 'crito-preview', type: 'select', blockId: null })
     expect(isReadyMessage({ source: 'crito-preview', type: 'ready' })).toBe(true)
     expect(isReadyMessage({ source: 'other', type: 'ready' })).toBe(false)
     expect(isReadyMessage(null)).toBe(false)

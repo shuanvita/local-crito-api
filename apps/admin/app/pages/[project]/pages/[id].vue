@@ -137,6 +137,8 @@ const trashed = computed(() => !!page.value?.deletedAt)
 
 const dirty = computed(() => !!draft.value && JSON.stringify(toPayload(draft.value)) !== snapshot.value)
 
+const selectedBlockId = computed(() => selected.value === 'page' ? null : selected.value)
+
 // То, что уходит на сайт для предпросмотра: тот же состав, что при сохранении, но без сохранения.
 const previewDraft = computed<PreviewDraft | null>(() => draft.value ? toPayload(draft.value) as PreviewDraft : null)
 
@@ -594,7 +596,7 @@ useEventListener(window, 'beforeunload', (event) => {
             v-if="wide && previewOpen"
             class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
           >
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
           </aside>
         </div>
 
@@ -607,7 +609,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ content: 'max-w-xl', body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
           </template>
         </USlideover>
 
@@ -619,7 +621,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
           </template>
         </UModal>
 

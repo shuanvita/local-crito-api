@@ -14,6 +14,8 @@ const props = defineProps<{
   expandable?: boolean
   /** Текущее состояние редактора: уходит на сайт в режиме «С моими правками», ничего не сохраняя. */
   draft?: PreviewDraft | null
+  /** Выбранный в редакторе блок: сайт подсвечивает его и прокручивает к нему; null: ничего не выбрано. */
+  selectedBlockId?: string | null
 }>()
 const emit = defineEmits<{ expand: [] }>()
 
@@ -37,17 +39,27 @@ const frameOrigin = computed(() => {
 // Сайт без поддержки предпросмотра не отвечает «готово»: тогда честно показываем опубликованную версию.
 const bridgeReady = ref(false)
 
+// Подсветка выбранного блока на сайте: только в режиме «С моими правками», в «Опубликованной» мост на сайте выключен.
+function sendSelection() {
+  if (!bridgeReady.value || !frameOrigin.value) return
+  frame.value?.contentWindow?.postMessage(selectMessage(props.selectedBlockId ?? null), frameOrigin.value)
+}
+
 function sendDraft() {
   if (mode.value !== 'draft' || !props.draft || !frameOrigin.value) return
   frame.value?.contentWindow?.postMessage(draftMessage(props.draft), frameOrigin.value)
+  // После нового черновика блоки на сайте перерисованы: выделение ставим заново.
+  nextTick(sendSelection)
 }
 const sendDraftDebounced = useDebounceFn(sendDraft, 300)
+watch(() => props.selectedBlockId, sendSelection)
 
 useEventListener(window, 'message', (event: MessageEvent) => {
   if (event.origin !== frameOrigin.value || event.source !== frame.value?.contentWindow) return
   if (!isReadyMessage(event.data)) return
   bridgeReady.value = true
   sendDraft()
+  sendSelection()
 })
 watch(() => props.draft, sendDraftDebounced, { deep: true })
 watch(mode, () => {
