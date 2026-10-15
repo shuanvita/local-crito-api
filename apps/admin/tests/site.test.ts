@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { pageSiteUrl, resolvePreview, siteOrigin } from '../app/utils/site'
+import { draftMessage, isReadyMessage, pageSiteUrl, previewFrameUrl, resolvePreview, siteOrigin } from '../app/utils/site'
+
+describe('предпросмотр с правками', () => {
+  it('добавляет параметр только в режиме черновика', () => {
+    expect(previewFrameUrl('https://a.test/news?x=1', true)).toBe('https://a.test/news?x=1&crito-preview=1')
+    expect(previewFrameUrl('https://a.test/', false)).toBe('https://a.test/')
+    expect(previewFrameUrl(null, true)).toBeNull()
+  })
+
+  it('формат сообщений совпадает с сайтом', () => {
+    expect(draftMessage({ blocks: [] })).toEqual({ source: 'crito-preview', type: 'draft', page: { blocks: [] } })
+    expect(isReadyMessage({ source: 'crito-preview', type: 'ready' })).toBe(true)
+    expect(isReadyMessage({ source: 'other', type: 'ready' })).toBe(false)
+    expect(isReadyMessage(null)).toBe(false)
+  })
+})
 
 describe('siteOrigin', () => {
   it('берёт siteUrl, иначе origin вебхука', () => {

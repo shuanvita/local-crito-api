@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { VueDraggable } from 'vue-draggable-plus'
+import type { PreviewDraft } from '~/utils/site'
 import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, ProjectSummary, UpdatePageRequest } from '@crito/contract'
 
 interface Draft {
@@ -134,6 +136,9 @@ if (page.value) load(page.value)
 const trashed = computed(() => !!page.value?.deletedAt)
 
 const dirty = computed(() => !!draft.value && JSON.stringify(toPayload(draft.value)) !== snapshot.value)
+
+// То, что уходит на сайт для предпросмотра: тот же состав, что при сохранении, но без сохранения.
+const previewDraft = computed<PreviewDraft | null>(() => draft.value ? toPayload(draft.value) as PreviewDraft : null)
 
 // --- блоки ---
 const definitions = computed(() => new Map((manifest.value?.blocks ?? []).map(block => [block.type, block])))
@@ -368,14 +373,28 @@ useEventListener(window, 'beforeunload', (event) => {
             </p>
 
             <!-- одна строка на блок; перемещение и удаление появляются при наведении или фокусе -->
-            <ul class="space-y-1.5">
+            <!-- перетаскивание за ручку; кнопки «выше/ниже» остаются для клавиатуры -->
+            <VueDraggable
+              v-model="draft.blocks"
+              tag="ul"
+              class="space-y-1.5"
+              handle=".drag-handle"
+              :animation="150"
+              :disabled="trashed"
+              ghost-class="opacity-40"
+            >
               <li
                 v-for="(block, index) in draft.blocks"
                 :key="block.id"
                 class="group rounded-md border transition-colors"
                 :class="selected === block.id ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-default hover:bg-elevated'"
               >
-                <div class="flex items-center gap-1 py-1.5 pl-3 pr-2" :class="!block.enabled && 'opacity-60'">
+                <div class="flex items-center gap-1 py-1.5 pl-1 pr-2" :class="!block.enabled && 'opacity-60'">
+                  <UIcon
+                    name="i-lucide-grip-vertical"
+                    class="drag-handle size-4 shrink-0 cursor-grab touch-none text-dimmed hover:text-muted active:cursor-grabbing"
+                    aria-hidden="true"
+                  />
                   <button
                     type="button"
                     class="min-w-0 flex-1 cursor-pointer text-left"
@@ -410,7 +429,7 @@ useEventListener(window, 'beforeunload', (event) => {
                   </UTooltip>
                 </div>
               </li>
-            </ul>
+            </VueDraggable>
           </aside>
 
           <!-- правая панель -->
@@ -575,7 +594,7 @@ useEventListener(window, 'beforeunload', (event) => {
             v-if="wide && previewOpen"
             class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
           >
-            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
           </aside>
         </div>
 
@@ -588,7 +607,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ content: 'max-w-xl', body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
           </template>
         </USlideover>
 
@@ -600,7 +619,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
           </template>
         </UModal>
 

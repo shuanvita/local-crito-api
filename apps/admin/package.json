@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@crito/contract": "*",
     "@iconify-json/lucide": "^1.2.139",
     "@nuxt/ui": "^4.11.3",
     "@tiptap/core": "^3.31.4",
@@ -22,8 +23,8 @@
     "nuxt": "^4.6.0",
     "tailwindcss": "^4.3.3",
     "vue": "^3.5.43",
-    "zod": "^4.6.5",
-    "@crito/contract": "*"
+    "vue-draggable-plus": "^0.6.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "typescript": "^6.0.3",
