@@ -31,8 +31,9 @@ model Project {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  pages Page[]
-  media Media[]
+  pages       Page[]
+  media       Media[]
+  submissions FormSubmission[]
 }
 
 /// Зеркало пользователя LMS. Паролей и ролей в CMS нет: права приходят из LMS.
@@ -117,6 +118,30 @@ model Media {
 
   @@unique([projectId, sha256])
   @@unique([projectId, key])
+}
+
+/// Заявка с формы сайта проекта. Принимается публичным эндпоинтом, читается менеджерами с доступом ко всему проекту.
+/// Только чтение: статусов и правок нет. Удаляется вместе с проектом.
+model FormSubmission {
+  id         String   @id @default(cuid())
+  projectId  String
+  /// Ключ формы, заданный сайтом ("consortium").
+  formKey    String
+  /// Контакты вынесены из `fields` для списка; необязательны, у формы может не быть такого поля.
+  name       String?
+  email      String?
+  phone      String?
+  pageUrl    String?
+  /// Все поля формы как отправлены (строки и списки строк).
+  fields     Json
+  /// Все значения одной строкой в нижнем регистре: поиск по заявкам.
+  searchText String   @db.Text
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, formKey])
 }
 
 /// Общий справочник «Регионы»: принадлежит всей CMS, а не проекту; его по публичному API читает любой сайт

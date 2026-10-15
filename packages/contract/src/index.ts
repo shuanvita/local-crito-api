@@ -13,6 +13,14 @@ export type { BlockManifest, JsonSchema, ManifestBlock, ManifestHeaderConfig } f
 export type { CurrentUser } from './me.js'
 export type { MediaItem } from './media.js'
 export type {
+  FormSubmissionDetail,
+  FormSubmissionItem,
+  FormSubmissionList,
+  SubmissionFieldValue,
+  SubmitFormRequest,
+  SubmitFormResponse,
+} from './requests.js'
+export type {
   CreatePageRequest,
   PageContent,
   PageDetail,

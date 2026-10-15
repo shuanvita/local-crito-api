@@ -9,6 +9,7 @@ import { validateEnvironment } from './config/env.js';
 import { MediaModule } from './media/media.module.js';
 import { ManifestModule } from './manifest/manifest.module.js';
 import { PagesModule } from './pages/pages.module.js';
+import { RequestsModule } from './requests/requests.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PublicController, PublicDictionariesController } from './public/public.controller.js';
@@ -29,6 +30,7 @@ import { PublicController, PublicDictionariesController } from './public/public.
     PagesModule,
     DictionariesModule,
     MediaModule,
+    RequestsModule,
   ],
   controllers: [PublicDictionariesController, PublicController, HealthController],
 })

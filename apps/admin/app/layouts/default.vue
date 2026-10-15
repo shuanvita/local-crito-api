@@ -13,6 +13,9 @@ const logoWhiteSrc = `${assetBase}/logo-white.png`
 const close = () => { open.value = false }
 // Настройки проекта видит только администратор админки (права всё равно проверяет API).
 const { data: me } = useMe()
+// Заявки содержат персональные данные: пункт нужен только при доступе ко всему проекту.
+const { data: projects } = useProjects()
+const fullAccess = computed(() => projects.value.find(item => item.slug === slug.value)?.fullAccess === true)
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
@@ -51,6 +54,14 @@ const links = computed<NavigationMenuItem[][]>(() => [
           to: `/${slug.value}/media`,
           onSelect: close
         },
+        ...(fullAccess.value
+          ? [{
+              label: 'Заявки',
+              icon: 'i-lucide-inbox',
+              to: `/${slug.value}/requests`,
+              onSelect: close
+            }]
+          : []),
         ...(me.value?.isSuperAdmin
           ? [{
               label: 'Настройки',

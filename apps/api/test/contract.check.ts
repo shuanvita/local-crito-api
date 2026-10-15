@@ -11,6 +11,8 @@ import type {
   BlockManifest,
   CreateProjectResponse,
   CurrentUser,
+  FormSubmissionDetail,
+  FormSubmissionList,
   MediaItem,
   PageDetail,
   PageListItem,
@@ -18,6 +20,7 @@ import type {
   ProjectSummary,
   RegionItem,
   RotateCiKeyResponse,
+  SubmitFormResponse,
   TrashedPageItem,
 } from '@crito/contract';
 import type { MeController } from '../src/auth/me.controller.js';
@@ -26,6 +29,7 @@ import type { ManifestService } from '../src/manifest/manifest.service.js';
 import type { MediaService } from '../src/media/media.service.js';
 import type { PagesService } from '../src/pages/pages.service.js';
 import type { ProjectsService } from '../src/projects/projects.service.js';
+import type { RequestsService } from '../src/requests/requests.service.js';
 
 /** Тип значения после `JSON.stringify` / `JSON.parse`: даты становятся строками. */
 type Jsonify<T> = T extends Date
@@ -63,6 +67,10 @@ export type ContractChecks = [
   Expect<Extends<Wire<ReturnType<DictionariesService['listRegions']>>, RegionItem[]>>,
   Expect<Extends<Wire<ReturnType<DictionariesService['createRegion']>>, RegionItem>>,
   Expect<Extends<Wire<ReturnType<DictionariesService['updateRegion']>>, RegionItem>>,
+  // заявки
+  Expect<Extends<Wire<ReturnType<RequestsService['list']>>, FormSubmissionList>>,
+  Expect<Extends<Wire<ReturnType<RequestsService['get']>>, FormSubmissionDetail>>,
+  Expect<Extends<Wire<ReturnType<RequestsService['submit']>>, SubmitFormResponse>>,
   // текущий пользователь
   Expect<Extends<ReturnType<MeController['me']>, CurrentUser>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)
