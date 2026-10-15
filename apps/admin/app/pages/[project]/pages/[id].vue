@@ -244,10 +244,12 @@ useEventListener(window, 'beforeunload', (event) => {
             <UIcon name="i-lucide-check" />
             Сохранено
           </span>
+          <!-- на широком экране предпросмотр уже рядом, поэтому достаточно иконки; на узком нужна подпись -->
           <UTooltip :text="wide && previewOpen ? 'Скрыть предпросмотр' : 'Показать предпросмотр'">
             <UButton
               icon="i-lucide-eye"
-              label="Предпросмотр"
+              :label="wide ? undefined : 'Предпросмотр'"
+              :aria-label="wide && previewOpen ? 'Скрыть предпросмотр' : 'Показать предпросмотр'"
               color="neutral"
               :variant="wide && previewOpen ? 'soft' : 'ghost'"
               :aria-pressed="wide && previewOpen"
@@ -258,7 +260,10 @@ useEventListener(window, 'beforeunload', (event) => {
           <UTooltip text="История версий">
             <UButton icon="i-lucide-history" color="neutral" variant="ghost" aria-label="История версий" class="cursor-pointer" @click="revisionsOpen = true" />
           </UTooltip>
-          <UButton label="Сохранить" icon="i-lucide-save" :disabled="!dirty || trashed" :loading="saving" class="cursor-pointer" @click="save" />
+          <!-- сохранение = публикация: кнопка называет это прямо, чтобы её не принимали за черновик -->
+          <UTooltip :text="dirty ? 'Сохранение сразу публикует страницу на сайте' : 'Нет изменений для публикации'">
+            <UButton label="Опубликовать" icon="i-lucide-upload" :disabled="!dirty || trashed" :loading="saving" class="cursor-pointer" @click="save" />
+          </UTooltip>
         </template>
       </UDashboardNavbar>
     </template>
@@ -312,14 +317,17 @@ useEventListener(window, 'beforeunload', (event) => {
         >
           <!-- список блоков: на десктопе закреплён и прокручивается сам, форма справа не уезжает -->
           <aside class="space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:border-r lg:border-default lg:pr-4">
+            <!-- пункт навигации, а не поле: без рамки в покое, с акцентной полосой при выборе -->
             <button
               type="button"
-              class="flex w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors"
-              :class="selected === 'page' ? 'border-primary bg-primary/5' : 'border-default hover:bg-elevated'"
+              class="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors"
+              :class="selected === 'page' ? 'bg-primary/10 text-primary' : 'text-highlighted hover:bg-elevated'"
+              :aria-current="selected === 'page' ? 'true' : undefined"
               @click="selected = 'page'"
             >
-              <UIcon name="i-lucide-settings-2" class="text-muted" />
+              <UIcon name="i-lucide-settings-2" :class="selected === 'page' ? 'text-primary' : 'text-muted'" />
               Настройки страницы и SEO
+              <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
             </button>
 
             <div class="flex items-center justify-between">
@@ -345,14 +353,23 @@ useEventListener(window, 'beforeunload', (event) => {
                 v-for="(block, index) in draft.blocks"
                 :key="block.id"
                 class="group rounded-md border transition-colors"
-                :class="selected === block.id ? 'border-primary bg-primary/5' : 'border-default hover:bg-elevated'"
+                :class="selected === block.id ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-default hover:bg-elevated'"
               >
-                <div class="flex items-center gap-1 py-1.5 pl-3 pr-2">
-                  <button type="button" class="min-w-0 flex-1 cursor-pointer text-left" @click="selected = block.id">
+                <div class="flex items-center gap-1 py-1.5 pl-3 pr-2" :class="!block.enabled && 'opacity-60'">
+                  <button
+                    type="button"
+                    class="min-w-0 flex-1 cursor-pointer text-left"
+                    :aria-current="selected === block.id ? 'true' : undefined"
+                    @click="selected = block.id"
+                  >
                     <span class="block truncate text-sm font-medium" :class="block.enabled ? 'text-highlighted' : 'text-muted line-through'">
                       {{ blockTitle(block) }}
                     </span>
-                    <span class="block truncate font-mono text-xs text-muted">{{ block.type }}</span>
+                    <!-- технический тип нужен разработчику: в покое почти не виден, при наведении и выборе читается -->
+                    <span
+                      class="block truncate font-mono text-[11px] text-dimmed transition-colors group-hover:text-muted"
+                      :class="selected === block.id && 'text-muted'"
+                    >{{ block.type }}</span>
                   </button>
 
                   <div class="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
@@ -364,7 +381,8 @@ useEventListener(window, 'beforeunload', (event) => {
                   <UTooltip :text="block.enabled ? 'Показывается на сайте. Нажмите, чтобы скрыть' : 'Скрыт на сайте. Нажмите, чтобы показать'">
                     <USwitch
                       :model-value="block.enabled"
-                      size="sm"
+                      size="xs"
+                      color="neutral"
                       class="cursor-pointer"
                       :aria-label="block.enabled ? 'Скрыть блок' : 'Показать блок'"
                       @update:model-value="block.enabled = $event"

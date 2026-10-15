@@ -121,8 +121,8 @@ watch(() => props.url, () => {
         :class="dirty ? 'bg-warning/10 text-warning' : 'bg-elevated text-muted'"
       >
         <UIcon :name="dirty ? 'i-lucide-info' : 'i-lucide-check'" class="mt-0.5 size-4 shrink-0" />
-        <span v-if="dirty">Здесь пока старая версия. Нажмите «Сохранить», и изменения появятся на сайте и в предпросмотре.</span>
-        <span v-else>Показана страница, как она сейчас на сайте.</span>
+        <span v-if="dirty">Показана опубликованная версия, без ваших правок. Нажмите «Опубликовать», и изменения появятся на сайте и здесь.</span>
+        <span v-else>Показана опубликованная версия страницы, как её видят посетители.</span>
       </p>
 
       <div ref="viewport" class="relative min-h-0 flex-1 overflow-hidden rounded-md border border-default bg-elevated">
