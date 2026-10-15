@@ -17,7 +17,11 @@ const props = defineProps<{
   /** Выбранный в редакторе блок: сайт подсвечивает его и прокручивает к нему; null: ничего не выбрано. */
   selectedBlockId?: string | null
 }>()
-const emit = defineEmits<{ expand: [] }>()
+const emit = defineEmits<{
+  expand: []
+  /** Клик по блоку в предпросмотре: редактор выбирает этот блок. */
+  pick: [blockId: string]
+}>()
 
 type Device = 'desktop' | 'mobile'
 const device = ref<Device>('desktop')
@@ -39,7 +43,7 @@ const frameOrigin = computed(() => {
 // Сайт без поддержки предпросмотра не отвечает «готово»: тогда честно показываем опубликованную версию.
 const bridgeReady = ref(false)
 
-// Подсветка выбранного блока на сайте: только в режиме «С моими правками», в «Опубликованной» мост на сайте выключен.
+// Подсветка выбранного блока на сайте работает в обоих режимах: в «Опубликованной» сайт только подсвечивает и отдаёт клики.
 function sendSelection() {
   if (!bridgeReady.value || !frameOrigin.value) return
   frame.value?.contentWindow?.postMessage(selectMessage(props.selectedBlockId ?? null), frameOrigin.value)
@@ -56,6 +60,11 @@ watch(() => props.selectedBlockId, sendSelection)
 
 useEventListener(window, 'message', (event: MessageEvent) => {
   if (event.origin !== frameOrigin.value || event.source !== frame.value?.contentWindow) return
+  const picked = pickedBlockId(event.data)
+  if (picked) {
+    emit('pick', picked)
+    return
+  }
   if (!isReadyMessage(event.data)) return
   bridgeReady.value = true
   sendDraft()
@@ -235,7 +244,7 @@ watch(() => props.url, () => {
         </div>
       </div>
       <p class="text-xs text-toned">
-        Ссылки и кнопки внутри предпросмотра работают как на сайте. Если картинка не появилась, нажмите «Обновить».
+        Нажмите на блок, чтобы выбрать его в редакторе. Если картинка не появилась, нажмите «Обновить».
       </p>
     </template>
   </div>

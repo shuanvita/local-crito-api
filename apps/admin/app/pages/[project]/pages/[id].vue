@@ -142,6 +142,16 @@ const selectedBlockId = computed(() => selected.value === 'page' ? null : select
 // То, что уходит на сайт для предпросмотра: тот же состав, что при сохранении, но без сохранения.
 const previewDraft = computed<PreviewDraft | null>(() => draft.value ? toPayload(draft.value) as PreviewDraft : null)
 
+// Клик по блоку в предпросмотре выбирает его в редакторе; блока уже нет в черновике (удалён) выбирать нечего.
+function pickBlock(blockId: string) {
+  if (!draft.value?.blocks.some(block => block.id === blockId)) return
+  selected.value = blockId
+  // Список блоков прокручивается сам: выбранная строка должна быть на виду.
+  nextTick(() => {
+    document.querySelector(`[data-block-item="${CSS.escape(blockId)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+}
+
 // --- блоки ---
 const definitions = computed(() => new Map((manifest.value?.blocks ?? []).map(block => [block.type, block])))
 const selectedBlock = computed(() => draft.value?.blocks.find(block => block.id === selected.value))
@@ -388,8 +398,9 @@ useEventListener(window, 'beforeunload', (event) => {
               <li
                 v-for="(block, index) in draft.blocks"
                 :key="block.id"
+                :data-block-item="block.id"
                 class="group rounded-md border transition-colors"
-                :class="selected === block.id ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-default hover:bg-elevated'"
+                :class="selected === block.id ? 'border-yellow-500 bg-yellow-500/10 ring-1 ring-yellow-500' : 'border-default hover:bg-elevated'"
               >
                 <div class="flex items-center gap-1 py-1.5 pl-1 pr-2" :class="!block.enabled && 'opacity-60'">
                   <UIcon
@@ -596,7 +607,7 @@ useEventListener(window, 'beforeunload', (event) => {
             v-if="wide && previewOpen"
             class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
           >
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" expandable @expand="previewExpanded = true" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" expandable @expand="previewExpanded = true" />
           </aside>
         </div>
 
@@ -609,7 +620,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ content: 'max-w-xl', body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
           </template>
         </USlideover>
 
@@ -621,7 +632,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
           </template>
         </UModal>
 

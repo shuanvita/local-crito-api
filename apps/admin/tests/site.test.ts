@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { draftMessage, isReadyMessage, pageSiteUrl, previewFrameUrl, resolvePreview, selectMessage, siteOrigin } from '../app/utils/site'
+import { draftMessage, isReadyMessage, pageSiteUrl, pickedBlockId, previewFrameUrl, resolvePreview, selectMessage, siteOrigin } from '../app/utils/site'
 
 describe('предпросмотр с правками', () => {
-  it('добавляет параметр только в режиме черновика', () => {
+  it('параметр: 1 для черновика, published для опубликованной версии', () => {
     expect(previewFrameUrl('https://a.test/news?x=1', true)).toBe('https://a.test/news?x=1&crito-preview=1')
-    expect(previewFrameUrl('https://a.test/', false)).toBe('https://a.test/')
+    expect(previewFrameUrl('https://a.test/', false)).toBe('https://a.test/?crito-preview=published')
     expect(previewFrameUrl(null, true)).toBeNull()
+    expect(previewFrameUrl(null, false)).toBeNull()
+  })
+
+  it('клик по блоку: принимает только свой формат', () => {
+    expect(pickedBlockId({ source: 'crito-preview', type: 'pick', blockId: 'b1' })).toBe('b1')
+    expect(pickedBlockId({ source: 'crito-preview', type: 'pick', blockId: '' })).toBeNull()
+    expect(pickedBlockId({ source: 'crito-preview', type: 'pick', blockId: 5 })).toBeNull()
+    expect(pickedBlockId({ source: 'other', type: 'pick', blockId: 'b1' })).toBeNull()
+    expect(pickedBlockId({ source: 'crito-preview', type: 'ready' })).toBeNull()
+    expect(pickedBlockId(null)).toBeNull()
   })
 
   it('формат сообщений совпадает с сайтом', () => {

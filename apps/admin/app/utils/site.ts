@@ -2,6 +2,7 @@ import type {
   PreviewChannel,
   PreviewDraftMessage,
   PreviewDraftPage,
+  PreviewPickMessage,
   PreviewReadyMessage,
   PreviewSelectMessage
 } from '@crito/contract'
@@ -27,12 +28,15 @@ export function pageSiteUrl(origin: string | null, slug: string): string | null 
 export const PREVIEW_QUERY = 'crito-preview'
 const PREVIEW_CHANNEL: PreviewChannel = 'crito-preview'
 
-/** Адрес страницы для iframe предпросмотра; режим «с правками» включается параметром. */
+/**
+ * Адрес страницы для iframe предпросмотра. `1`: сайт принимает черновик; `published`: черновик игнорируется,
+ * но блоки помечаются, подсвечиваются и выбираются кликом (старый сайт значение не знает и ведёт себя как обычно).
+ */
 export function previewFrameUrl(url: string | null, withDraft: boolean): string | null {
-  if (!url || !withDraft) return url
+  if (!url) return url
   try {
     const parsed = new URL(url)
-    parsed.searchParams.set(PREVIEW_QUERY, '1')
+    parsed.searchParams.set(PREVIEW_QUERY, withDraft ? '1' : 'published')
     return parsed.toString()
   } catch {
     return url
@@ -57,6 +61,14 @@ export function isReadyMessage(data: unknown): data is PreviewReadyMessage {
   if (typeof data !== 'object' || data === null) return false
   const message = data as { source?: unknown, type?: unknown }
   return message.source === PREVIEW_CHANNEL && message.type === 'ready'
+}
+
+/** Сообщение сайта «кликнули по блоку»: id выбираемого в редакторе блока. */
+export function pickedBlockId(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null
+  const message = data as Partial<PreviewPickMessage>
+  if (message.source !== PREVIEW_CHANNEL || message.type !== 'pick') return null
+  return typeof message.blockId === 'string' && message.blockId ? message.blockId : null
 }
 
 /**

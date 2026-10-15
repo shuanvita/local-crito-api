@@ -27,6 +27,7 @@ export type {
   PreviewDraftPage,
   PreviewMessageToAdmin,
   PreviewMessageToSite,
+  PreviewPickMessage,
   PreviewReadyMessage,
   PreviewSelectMessage,
 } from './preview.js'

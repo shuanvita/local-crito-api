@@ -33,5 +33,12 @@ export interface PreviewReadyMessage {
   type: 'ready'
 }
 
+/** Сайт -> админка: посетитель-редактор кликнул по блоку в предпросмотре, редактор должен выбрать его. */
+export interface PreviewPickMessage {
+  source: PreviewChannel
+  type: 'pick'
+  blockId: string
+}
+
 export type PreviewMessageToSite = PreviewDraftMessage | PreviewSelectMessage
-export type PreviewMessageToAdmin = PreviewReadyMessage
+export type PreviewMessageToAdmin = PreviewReadyMessage | PreviewPickMessage
