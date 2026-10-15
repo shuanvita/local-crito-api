@@ -333,7 +333,7 @@ useEventListener(window, 'beforeunload', (event) => {
 
         <div
           class="grid items-start gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]"
-          :class="previewOpen && 'xl:grid-cols-[20rem_minmax(0,1fr)_minmax(24rem,44rem)]'"
+          :class="previewOpen && 'xl:grid-cols-[20rem_minmax(26rem,1fr)_minmax(24rem,1fr)]'"
         >
           <!-- список блоков: на десктопе закреплён и прокручивается сам, форма справа не уезжает -->
           <aside class="space-y-3 lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:border-r lg:border-default lg:pr-4">
