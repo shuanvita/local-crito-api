@@ -51,7 +51,6 @@ const origin = computed(() => siteOrigin(current.value))
 const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value.slug) : null)
 
 // --- настройки страницы ---
-const analyticsOpen = ref(false)
 const headerConfigs = computed(() => manifest.value?.headerConfigs ?? [])
 const headerConfigOptions = computed(() => headerConfigItems(headerConfigs.value, draft.value?.headerConfig ?? ''))
 const descriptionLevelValue = computed(() => descriptionLevel(draft.value?.meta.description))
@@ -422,7 +421,19 @@ useEventListener(window, 'beforeunload', (event) => {
                 Настройки страницы
               </h2>
 
-              <!-- порядок по частоте правок: основное, SEO, соцсети; справочная аналитика в конце и свёрнута -->
+              <!-- аналитика сверху и всегда раскрыта: менеджер видит счётчик сразу -->
+              <UCard>
+                <template #header>
+                  <h3 class="font-medium text-highlighted">
+                    Аналитика
+                  </h3>
+                </template>
+                <MetrikaCounter :counter-id="metrikaCounter.id" :demo="metrikaCounter.demo" />
+                <p class="mt-2 text-xs text-muted">
+                  Справка: счётчик общий для всего сайта и здесь не редактируется.
+                </p>
+              </UCard>
+
               <UCard :ui="{ body: 'space-y-4' }">
                 <template #header>
                   <h3 class="font-medium text-highlighted">
@@ -507,23 +518,6 @@ useEventListener(window, 'beforeunload', (event) => {
                 <EditorSeoPreview :meta="draft.meta" :site-url="siteUrl" :slug="page?.slug ?? ''" :origin="origin" />
               </UCard>
 
-              <UCard>
-                <button
-                  type="button"
-                  class="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
-                  :aria-expanded="analyticsOpen"
-                  @click="analyticsOpen = !analyticsOpen"
-                >
-                  <span class="font-medium text-highlighted">Аналитика</span>
-                  <UIcon :name="analyticsOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" class="text-muted" />
-                </button>
-                <div v-if="analyticsOpen" class="mt-4">
-                  <MetrikaCounter :counter-id="metrikaCounter.id" :demo="metrikaCounter.demo" />
-                  <p class="mt-2 text-xs text-muted">
-                    Справка: счётчик общий для всего сайта и здесь не редактируется.
-                  </p>
-                </div>
-              </UCard>
             </template>
 
             <!-- блок -->
