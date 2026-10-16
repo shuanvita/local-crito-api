@@ -32,6 +32,12 @@ export interface ContentPageMeta {
  */
 export type PageHeader = Record<string, unknown>
 
+/**
+ * Футер страницы: ссылки, регламент, контакты. Форму задаёт сайт в манифесте (`footerSchema`),
+ * CMS по ней проверяет и очищает данные, но сама их устройство не знает.
+ */
+export type PageFooter = Record<string, unknown>
+
 /** Страница в формате публичного API: `GET /public/:project/pages/:slug`. */
 export interface ContentPage {
   slug: string
@@ -40,5 +46,7 @@ export interface ContentPage {
   meta?: ContentPageMeta
   /** Шапка страницы (ссылки, логотипы); без неё сайт рисует шапку по умолчанию без своих ссылок. */
   header?: PageHeader
+  /** Футер страницы; без него сайт рисует футер по умолчанию. */
+  footer?: PageFooter
   noFooterSpacing?: boolean
 }

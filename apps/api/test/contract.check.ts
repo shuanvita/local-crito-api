@@ -42,7 +42,7 @@ type Jsonify<T> = T extends Date
       : T;
 
 type Wire<T> = Jsonify<Awaited<T>>;
-type WithoutJson<T> = Omit<T, 'blocks' | 'meta' | 'header'>;
+type WithoutJson<T> = Omit<T, 'blocks' | 'meta' | 'header' | 'footer'>;
 type Expect<T extends true> = T;
 type Extends<A, B> = [A] extends [B] ? true : false;
 

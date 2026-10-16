@@ -120,6 +120,16 @@ describe('ManifestService.set: поля каталога блоков', () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
+  it('сохраняет footerSchema и отклоняет невалидную', async () => {
+    const { service, update } = createSetService();
+    await service.set('rucode', { ...manifest, footerSchema: { type: 'object', properties: { links: { type: 'array' } } } });
+    expect(update).toHaveBeenCalledOnce();
+    await expect(
+      service.set('rucode', { ...manifest, footerSchema: { type: 'not-a-type' } } as unknown as BlockManifest),
+    ).rejects.toThrow('footerSchema');
+    expect(update).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ['origin', { origin: 'other' }],
     ['group', { group: 1 }],

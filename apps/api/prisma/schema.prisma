@@ -66,8 +66,10 @@ model Page {
   meta            Json?
   /// Шапка страницы (ссылки, логотипы) по `headerSchema` манифеста; null: шапка по умолчанию без своих ссылок.
   header          Json?
+  /// Футер страницы (ссылки, регламент, контакты) по `footerSchema` манифеста; null: футер по умолчанию.
+  footer          Json?
   noFooterSpacing Boolean  @default(false)
-  /// Не опубликованное на сайт содержимое (blocks, meta, header, noFooterSpacing одним JSON); null: черновика нет.
+  /// Не опубликованное на сайт содержимое (blocks, meta, header, footer, noFooterSpacing одним JSON); null: черновика нет.
   draft           Json?
   draftUpdatedAt  DateTime?
   draftById       String?
@@ -96,6 +98,7 @@ model PageRevision {
   blocks          Json
   meta            Json?
   header          Json?
+  footer          Json?
   noFooterSpacing Boolean  @default(false)
   authorId        String?
   createdAt       DateTime @default(now())

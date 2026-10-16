@@ -67,6 +67,7 @@ export async function importPages(
         blocks: page.blocks,
         meta: page.meta,
         header: page.header,
+        footer: page.footer,
         noFooterSpacing: page.noFooterSpacing ?? false,
       };
       const existing = await deps.findPage(options.project, slug);

@@ -103,6 +103,7 @@ export class MediaService {
         AND (position(${media.key} in "blocks"::text) > 0
           OR position(${media.key} in coalesce("meta"::text, '')) > 0
           OR position(${media.key} in coalesce("header"::text, '')) > 0
+          OR position(${media.key} in coalesce("footer"::text, '')) > 0
           OR position(${media.key} in coalesce("draft"::text, '')) > 0)
       ORDER BY "slug"
     `);

@@ -76,4 +76,6 @@ export interface BlockManifest {
    * (`x-field: link | image`). Без схемы шапку страницы сохранить нельзя.
    */
   headerSchema?: JsonSchema
+  /** JSON Schema футера страницы (`footer`): так же, как `headerSchema`. Без схемы футер страницы сохранить нельзя. */
+  footerSchema?: JsonSchema
 }

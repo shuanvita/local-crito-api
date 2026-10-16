@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import type { PreviewDraft } from '~/utils/site'
-import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, PageHeader, PageRevisionDetail, ProjectSummary, PublishPageRequest, UpdatePageRequest } from '@crito/contract'
+import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, PageFooter, PageHeader, PageRevisionDetail, ProjectSummary, PublishPageRequest, UpdatePageRequest } from '@crito/contract'
 
 interface Draft {
   blocks: ContentBlock[]
   meta: ContentPageMeta
   /** Шапка страницы по `headerSchema` манифеста: ссылки и логотипы. Пустая: сайт рисует шапку по умолчанию. */
   header: PageHeader
+  /** Футер страницы по `footerSchema` манифеста: ссылки, регламент, контакты. Пустой: сайт рисует футер по умолчанию. */
+  footer: PageFooter
   noFooterSpacing: boolean
 }
 
 /** Панели справа, которые не относятся к блокам: выбранный блок задаётся его `id`. */
-const PAGE_PANELS = ['page', 'header']
+const PAGE_PANELS = ['page', 'header', 'footer']
 
 const route = useRoute()
 const api = useApi()
@@ -61,6 +63,9 @@ const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value
 const headerSchema = computed(() => manifest.value?.headerSchema)
 // Бейдж у пункта: на странице что-то задано (ссылки или логотипы).
 const headerFilled = computed(() => !!draft.value && !!toPayload(draft.value).header)
+// Футер, как и шапку, можно править, только если сайт описал его форму в манифесте.
+const footerSchema = computed(() => manifest.value?.footerSchema)
+const footerFilled = computed(() => !!draft.value && !!toPayload(draft.value).footer)
 const descriptionLevelValue = computed(() => descriptionLevel(draft.value?.meta.description))
 const descriptionHint = computed(() => ({
   empty: `Рекомендуем ${SEO_DESCRIPTION_MIN}–${SEO_DESCRIPTION_MAX} символов: коротко о том, что на странице. Пока пусто.`,
@@ -114,11 +119,13 @@ function cleanMeta(meta: ContentPageMeta): ContentPageMeta | undefined {
 /** Тело запроса сохранения. Используется и для сравнения с исходным состоянием. */
 function toPayload(value: Draft) {
   const header = pruneEmpty(value.header)
+  const footer = pruneEmpty(value.footer)
   return {
     blocks: pruneEmpty(renumberBlocks(value.blocks)),
     meta: cleanMeta(value.meta),
     // Пустую шапку не отправляем: у страницы её просто нет.
     header: Object.keys(header).length ? header : undefined,
+    footer: Object.keys(footer).length ? footer : undefined,
     noFooterSpacing: value.noFooterSpacing
   }
 }
@@ -128,6 +135,7 @@ interface PageSource {
   blocks: ContentBlock[]
   meta?: ContentPageMeta | null
   header?: PageHeader | null
+  footer?: PageFooter | null
   noFooterSpacing: boolean
 }
 
@@ -136,6 +144,7 @@ function toDraft(source: PageSource): Draft {
     blocks: [...source.blocks].sort((a, b) => a.order - b.order).map(block => structuredClone(block)),
     meta: { ...source.meta },
     header: source.header ? structuredClone(source.header) : {},
+    footer: source.footer ? structuredClone(source.footer) : {},
     noFooterSpacing: source.noFooterSpacing
   }
 }
@@ -528,6 +537,21 @@ useEventListener(window, 'beforeunload', (event) => {
               <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
             </button>
 
+            <!-- футер страницы: только если сайт описал его форму в манифесте -->
+            <button
+              v-if="footerSchema"
+              type="button"
+              class="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors"
+              :class="selected === 'footer' ? 'bg-primary/10 text-primary' : 'text-highlighted hover:bg-elevated'"
+              :aria-current="selected === 'footer' ? 'true' : undefined"
+              @click="selected = 'footer'"
+            >
+              <UIcon name="i-lucide-panel-bottom" :class="selected === 'footer' ? 'text-primary' : 'text-muted'" />
+              Футер страницы
+              <UBadge v-if="footerFilled" label="задан" color="primary" variant="subtle" size="sm" />
+              <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
+            </button>
+
             <div class="flex items-center justify-between">
               <h2 class="text-sm font-medium text-highlighted">
                 Блоки ({{ draft.blocks.length }})
@@ -710,6 +734,24 @@ useEventListener(window, 'beforeunload', (event) => {
                   v-model="draft.header"
                   :schema="headerSchema"
                   :root="headerSchema"
+                  :project="project"
+                />
+              </UCard>
+            </template>
+
+            <!-- футер страницы: ссылки, регламент и контакты по схеме сайта; соцсети и логотип живут в коде сайта -->
+            <template v-else-if="selected === 'footer' && footerSchema">
+              <h2 class="text-lg font-semibold text-highlighted">
+                Футер страницы
+              </h2>
+              <p class="text-sm text-muted">
+                По умолчанию футер как на главной. Здесь задаются ссылки этой страницы, регламент и контакты.
+              </p>
+              <UCard>
+                <EditorSchemaForm
+                  v-model="draft.footer"
+                  :schema="footerSchema"
+                  :root="footerSchema"
                   :project="project"
                 />
               </UCard>

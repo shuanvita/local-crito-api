@@ -12,10 +12,10 @@ import type { PageDraft } from '@crito/contract';
 import { CreatePageDto, UpdatePageDto } from './pages.dto.js';
 import { RevalidateService } from './revalidate.service.js';
 
-type PageContent = Pick<CreatePageDto, 'blocks' | 'meta' | 'header' | 'noFooterSpacing'>;
+type PageContent = Pick<CreatePageDto, 'blocks' | 'meta' | 'header' | 'footer' | 'noFooterSpacing'>;
 
 /** Содержимое страницы одним JSON: так лежит черновик и так сравнивается с опубликованным. */
-type StoredContent = Pick<PageDraft, 'blocks' | 'meta' | 'header' | 'noFooterSpacing'>;
+type StoredContent = Pick<PageDraft, 'blocks' | 'meta' | 'header' | 'footer' | 'noFooterSpacing'>;
 
 type PageRow = Page & {
   project?: unknown;
@@ -87,6 +87,7 @@ export class PagesService {
       ...dto,
       blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks),
       header: await this.manifest.prepareHeader(projectSlug, dto.header),
+      footer: await this.manifest.prepareFooter(projectSlug, dto.footer),
     };
 
     const exists = await this.prisma.page.findUnique({
@@ -134,6 +135,7 @@ export class PagesService {
       ...dto,
       blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks),
       header: await this.manifest.prepareHeader(projectSlug, dto.header),
+      footer: await this.manifest.prepareFooter(projectSlug, dto.footer),
     };
 
     const content = this.snapshot(dto);
@@ -171,11 +173,13 @@ export class PagesService {
     await this.manifest.validateBlocks(projectSlug, draft.blocks);
     const blocks = await this.manifest.sanitizeBlocks(projectSlug, draft.blocks);
     const header = await this.manifest.prepareHeader(projectSlug, draft.header);
+    const footer = await this.manifest.prepareFooter(projectSlug, draft.footer);
     const content = {
       ...this.contentData({
         ...draft,
         meta: draft.meta ?? undefined,
         header,
+        footer,
         blocks,
       }),
     };
@@ -288,6 +292,7 @@ export class PagesService {
       blocks: revision.blocks as unknown as StoredContent['blocks'],
       meta: (revision.meta ?? null) as StoredContent['meta'],
       header: (revision.header ?? null) as StoredContent['header'],
+      footer: (revision.footer ?? null) as StoredContent['footer'],
       noFooterSpacing: revision.noFooterSpacing,
     };
   }
@@ -333,6 +338,7 @@ export class PagesService {
         blocks: dto.blocks,
         meta: dto.meta ?? null,
         header: dto.header ?? null,
+        footer: dto.footer ?? null,
         noFooterSpacing: dto.noFooterSpacing ?? false,
       }),
     ) as StoredContent;
@@ -343,12 +349,13 @@ export class PagesService {
       blocks: page.blocks as unknown as StoredContent['blocks'],
       meta: (page.meta ?? null) as StoredContent['meta'],
       header: (page.header ?? null) as StoredContent['header'],
+      footer: (page.footer ?? null) as StoredContent['footer'],
       noFooterSpacing: page.noFooterSpacing,
     };
   }
 
   /**
-   * Черновики, сохранённые до появления шапки, не содержат `header`: считаем его пустым.
+   * Черновики, сохранённые до появления шапки и футера, не содержат `header` и `footer`: считаем их пустыми.
    * Поля собираем явно: в старых черновиках остался ключ `headerConfig`, наружу он не должен попадать.
    */
   private draftContent(page: Page): StoredContent {
@@ -357,6 +364,7 @@ export class PagesService {
       blocks: draft.blocks,
       meta: draft.meta ?? null,
       header: draft.header ?? null,
+      footer: draft.footer ?? null,
       noFooterSpacing: draft.noFooterSpacing ?? false,
     };
   }
@@ -379,6 +387,7 @@ export class PagesService {
       meta: (dto.meta ?? undefined) as Prisma.InputJsonValue | undefined,
       // DbNull, а не undefined: при публикации убранная шапка должна стереть прежнюю, а не остаться.
       header: (dto.header ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      footer: (dto.footer ?? Prisma.DbNull) as Prisma.InputJsonValue,
       noFooterSpacing: dto.noFooterSpacing ?? false,
     };
   }

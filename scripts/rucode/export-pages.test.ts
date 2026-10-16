@@ -10,11 +10,16 @@ import { dirname } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { buildManifest } from '~/app/block-registry/buildManifest'
+import { footerSchema } from '~/app/block-registry/schemas/footer'
 import { headerSchema } from '~/app/block-registry/schemas/header'
 import { blockDefinitionsWithSchemas } from '~/app/block-registry/withSchemas'
 import ru from '~/app/i18n/locales/ru.json'
 import { getBlockDefinition, registerBlocks, resetBlockRegistry, resolveBlockType } from '~/shared/api'
 import type { ContentBlock, ContentPage, ContentPageMeta } from '~/shared/api'
+
+import { footerConfigs } from '~/widgets/footer'
+import { defaultFooterContacts, defaultFooterRegulation } from '~/widgets/footer/model/TheFooter.config'
+import type { FooterConfigKey, FooterData } from '~/widgets/footer'
 
 import { aiChampData } from '~/pages/ai_champ/model/AiChamp.data'
 import { aiTestingData } from '~/pages/aitesting/model/AiTesting.data'
@@ -197,6 +202,49 @@ const pages: PageSource[] = [
   },
 ]
 
+/** Ключ `footerConfig` из `definePageMeta` статических страниц сайта (`src/app/routes/*.vue`). */
+const footerKeys: Record<string, FooterConfigKey> = {
+  '/': 'home',
+  '/ai_champ': 'ai_champ',
+  '/aitesting': 'aitesting',
+  '/award2025': 'award2025',
+  '/award2026': 'award2026',
+  '/capital-2024': 'capital2024',
+  '/champ': 'champ',
+  '/consortium': 'consortium',
+  '/final-2024': 'final2024',
+  '/mts': 'mts',
+  '/mws': 'mws',
+  '/practikum': 'practikum',
+}
+
+/**
+ * Футер, который был зашит в сайте (`footerConfigs`), в виде `footer` страницы. Заданный футер описывает страницу
+ * целиком, поэтому значения по умолчанию виджета (регламент, контакты) выписываются явно. Переводы (`titleKey`) в форму
+ * CMS не входят: у страниц с английской версией остаются в коде.
+ */
+function footerFor(route: string): FooterData | undefined {
+  const key = footerKeys[route]
+  const config = key ? footerConfigs[key] : undefined
+  if (!config) return undefined
+  const regulation = config.regulation === undefined ? defaultFooterRegulation : config.regulation
+  const contacts = { ...defaultFooterContacts, ...config.contacts }
+  return {
+    links: config.links.map(({ href, title }) => ({ href, title })),
+    ...(regulation ? { regulation: { href: regulation.href, title: regulation.title } } : {}),
+    contacts: {
+      ...(contacts.email ? { email: contacts.email } : {}),
+      ...(contacts.link ? { link: contacts.link } : {}),
+      ...(contacts.phone ? { phone: contacts.phone } : {}),
+      ...(contacts.phone && contacts.phoneTitle ? { phoneTitle: contacts.phoneTitle } : {}),
+      ...(contacts.workHours ? { workHours: contacts.workHours } : {}),
+      ...(contacts.extraGroups?.length
+        ? { extraGroups: contacts.extraGroups.map(({ title, email }) => ({ ...(title ? { title } : {}), email })) }
+        : {}),
+    },
+  }
+}
+
 type Json = Record<string, unknown>
 const isPlain = (value: unknown): value is Json =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -261,11 +309,20 @@ function convert(source: PageSource, problems: Problem[]) {
     }
   }
 
+  const footer = footerFor(source.route)
+  if (footer) {
+    const result = footerSchema.safeParse(footer)
+    if (!result.success) {
+      problems.push({ page: slug, message: `футер не проходит схему: ${JSON.stringify(result.error.issues).slice(0, 400)}` })
+    }
+  }
+
   return {
     slug,
     blocks: blocks.toSorted((a, b) => a.order - b.order),
     ...(source.meta ? { meta: source.meta } : {}),
     ...(source.header ? { header: source.header } : {}),
+    ...(footer ? { footer } : {}),
     noFooterSpacing: source.noFooterSpacing ?? false,
   }
 }

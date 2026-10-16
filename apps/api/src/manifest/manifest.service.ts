@@ -3,7 +3,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../common/prisma.service.js';
-import type { BlockManifest, ContentBlock, JsonSchema, PageHeader } from '@crito/contract';
+import type { BlockManifest, ContentBlock, JsonSchema, PageFooter, PageHeader } from '@crito/contract';
 import { sanitizeBlockData } from './rich-text.js';
 
 /** Блок страницы в запросе на сохранение: формат контракта. */
@@ -38,13 +38,14 @@ export class ManifestService {
     }
     const types = new Set<string>();
     const ajv = this.createAjv();
-    if (manifest.headerSchema !== undefined) {
+    for (const key of ['headerSchema', 'footerSchema'] as const) {
+      const schema = manifest[key];
+      if (schema === undefined) continue;
       try {
-        const schema = manifest.headerSchema;
         if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) throw new Error('должна быть объектом');
         ajv.compile(schema);
       } catch (error) {
-        throw new BadRequestException(`Невалидная JSON Schema в headerSchema: ${(error as Error).message}`);
+        throw new BadRequestException(`Невалидная JSON Schema в ${key}: ${(error as Error).message}`);
       }
     }
     for (const block of manifest.blocks) {
@@ -148,6 +149,13 @@ export class ManifestService {
     if (header === undefined || header === null) return undefined;
     const entry = await this.loadEntry(slug);
     return this.prepareAgainst(entry.manifest.headerSchema, header, 'header', 'Манифест проекта не описывает шапку (headerSchema)') as PageHeader;
+  }
+
+  /** Футер страницы: то же, что `prepareHeader`, но по `footerSchema`. */
+  async prepareFooter(slug: string, footer: PageFooter | null | undefined): Promise<PageFooter | undefined> {
+    if (footer === undefined || footer === null) return undefined;
+    const entry = await this.loadEntry(slug);
+    return this.prepareAgainst(entry.manifest.footerSchema, footer, 'footer', 'Манифест проекта не описывает футер (footerSchema)') as PageFooter;
   }
 
   private prepareAgainst(schema: JsonSchema | undefined, data: unknown, label: string, missing: string): unknown {

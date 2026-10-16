@@ -3,6 +3,7 @@ import type {
   ContentPageMeta,
   CreatePageRequest,
   PageContent,
+  PageFooter,
   PageHeader,
   PublishPageRequest,
   UpdatePageRequest,
@@ -74,6 +75,11 @@ class PageContentDto implements PageContent {
   @IsOptional()
   @IsObject()
   header?: PageHeader;
+
+  /** Футер страницы: форма задана `footerSchema` манифеста и проверяется там, а не здесь. */
+  @IsOptional()
+  @IsObject()
+  footer?: PageFooter;
 
   @IsOptional()
   @IsBoolean()

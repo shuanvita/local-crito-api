@@ -71,6 +71,7 @@ export class PublicController {
         blocks: true,
         meta: true,
         header: true,
+        footer: true,
         noFooterSpacing: true,
       },
     });
@@ -83,6 +84,7 @@ export class PublicController {
       blocks: page.blocks as unknown as ContentPage['blocks'],
       ...(page.meta ? { meta: page.meta as ContentPage['meta'] } : {}),
       ...(page.header ? { header: page.header as ContentPage['header'] } : {}),
+      ...(page.footer ? { footer: page.footer as ContentPage['footer'] } : {}),
       noFooterSpacing: page.noFooterSpacing,
     };
   }
