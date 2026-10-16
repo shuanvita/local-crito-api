@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import type { PageDetail, PageRevisionItem } from '@crito/contract'
+import type { PageRevisionDetail, PageRevisionItem } from '@crito/contract'
 
 const props = defineProps<{
   project: string
   pageId: string
+  /** Опубликованная сейчас версия (её видят посетители). */
   currentVersion: number
-  /** Откат запрещён, пока в редакторе есть несохранённые изменения. */
-  locked?: boolean
+  /** Версия из истории, открытая в редакторе; null: открыта обычная страница. */
+  viewingVersion?: number | null
+  /** Есть сохранённый черновик поверх опубликованной версии. */
+  hasDraft?: boolean
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
-const emit = defineEmits<{ restored: [page: PageDetail] }>()
+/** Версию выбрали: редактор показывает её содержимое (и в предпросмотре), ничего не публикуя. */
+const emit = defineEmits<{ open: [revision: PageRevisionDetail] }>()
 
 const api = useApi()
 const toast = useToast()
@@ -18,7 +22,7 @@ const base = computed(() => `/projects/${props.project}/pages/${props.pageId}/re
 
 const revisions = ref<PageRevisionItem[]>([])
 const loading = ref(false)
-const restoring = ref<number>()
+const opening = ref<number>()
 
 watch(open, async (isOpen) => {
   if (!isOpen) return
@@ -34,31 +38,28 @@ watch(open, async (isOpen) => {
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
 
-async function restore(version: number) {
-  restoring.value = version
+async function show(version: number) {
+  opening.value = version
   try {
-    const page = await api<PageDetail>(`${base.value}/${version}/restore`, { method: 'POST' })
-    toast.add({ title: `Версия ${version} восстановлена как ${page.version}`, color: 'success' })
-    open.value = false
-    emit('restored', page)
+    emit('open', await api<PageRevisionDetail>(`${base.value}/${version}`))
   } catch (error) {
-    toast.add({ title: 'Не удалось восстановить версию', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: 'Не удалось открыть версию', description: apiErrorMessage(error), color: 'error' })
   } finally {
-    restoring.value = undefined
+    opening.value = undefined
   }
 }
 </script>
 
 <template>
-  <USlideover v-model:open="open" title="История изменений" description="Каждое сохранение создаёт новую версию. Откат тоже создаёт новую версию.">
+  <USlideover v-model:open="open" title="История версий" description="Версия появляется при публикации. Выберите её, чтобы увидеть в редакторе и предпросмотре: на сайте ничего не изменится, пока вы не опубликуете.">
     <template #body>
       <UAlert
-        v-if="locked"
-        color="warning"
+        v-if="hasDraft"
+        color="info"
         variant="subtle"
-        icon="i-lucide-triangle-alert"
-        title="Есть несохранённые изменения"
-        description="Сохраните их или перезагрузите страницу, чтобы восстановить старую версию."
+        icon="i-lucide-file-pen-line"
+        title="Есть сохранённый черновик"
+        description="Он ещё не опубликован. Если открыть версию из списка, в редакторе окажется её содержимое; черновик останется, пока вы не сохраните поверх него."
         class="mb-4"
       />
 
@@ -71,21 +72,22 @@ async function restore(version: number) {
           <div class="min-w-0">
             <p class="text-sm font-medium text-highlighted">
               Версия {{ revision.version }}
-              <UBadge v-if="revision.version === currentVersion" label="текущая" color="primary" variant="subtle" size="sm" class="ml-1" />
+              <UBadge v-if="revision.version === currentVersion" label="на сайте" color="primary" variant="subtle" size="sm" class="ml-1" />
+              <UBadge v-if="revision.version === viewingVersion" label="открыта" color="info" variant="subtle" size="sm" class="ml-1" />
             </p>
             <p class="truncate text-xs text-muted">
               {{ dateFormat.format(new Date(revision.createdAt)) }} · {{ revision.author?.name ?? revision.author?.email ?? 'неизвестно' }}
             </p>
           </div>
           <UButton
-            v-if="revision.version !== currentVersion"
-            label="Восстановить"
+            label="Открыть"
+            icon="i-lucide-eye"
             size="xs"
             color="neutral"
             variant="subtle"
-            :disabled="locked"
-            :loading="restoring === revision.version"
-            @click="restore(revision.version)"
+            :disabled="revision.version === viewingVersion"
+            :loading="opening === revision.version"
+            @click="show(revision.version)"
           />
         </li>
       </ul>

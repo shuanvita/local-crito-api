@@ -47,11 +47,13 @@ model User {
 
   updatedPages Page[]         @relation("PageUpdatedBy")
   deletedPages Page[]         @relation("PageDeletedBy")
+  draftPages   Page[]         @relation("PageDraftBy")
   revisions    PageRevision[]
   media        Media[]
 }
 
-/// Страница проекта. Сохранение = публикация: `blocks` это текущее опубликованное содержимое.
+/// Страница проекта. `blocks`/`meta`/... это опубликованное содержимое, его читает сайт; правки до публикации
+/// лежат в `draft`. Версия растёт и снимок попадает в `PageRevision` только при публикации.
 /// Удаление мягкое: страница с `deletedAt` скрыта на сайте и в списках (корзина), история сохраняется.
 /// Адрес остаётся занятым, пока страницу не восстановят или не удалят навсегда.
 model Page {
@@ -64,6 +66,10 @@ model Page {
   meta            Json?
   headerConfig    String?
   noFooterSpacing Boolean  @default(false)
+  /// Не опубликованное на сайт содержимое (blocks, meta, headerConfig, noFooterSpacing одним JSON); null: черновика нет.
+  draft           Json?
+  draftUpdatedAt  DateTime?
+  draftById       String?
   updatedById     String?
   /// Когда страницу переместили в корзину; null у живых страниц.
   deletedAt       DateTime?
@@ -74,13 +80,14 @@ model Page {
   project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   updatedBy User?          @relation("PageUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   deletedBy User?          @relation("PageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  draftBy   User?          @relation("PageDraftBy", fields: [draftById], references: [id], onDelete: SetNull)
   revisions PageRevision[]
 
   @@unique([projectId, slug])
   @@index([projectId, deletedAt])
 }
 
-/// Снимок страницы на момент каждого сохранения: история и откат.
+/// Снимок страницы на момент каждой публикации: история версий.
 model PageRevision {
   id              String   @id @default(cuid())
   pageId          String

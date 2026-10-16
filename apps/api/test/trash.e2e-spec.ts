@@ -62,6 +62,7 @@ beforeAll(async () => {
     .put(`/projects/${PROJECT}/pages/${pageId}`, admin)
     .send({ version: 1, blocks: [infoBlock('Вторая версия')], meta: { title: 'В корзину' } })
     .expect(200);
+  await http.post(`/projects/${PROJECT}/pages/${pageId}/publish`, admin).send({ version: 1 }).expect(201);
 
   editor = await ctx.login('trash-editor@e2e.test', { grants: [{ project: PROJECT, scope: 'pages', pageIds: [pageId] }] });
 });
@@ -111,15 +112,17 @@ describe('корзина', () => {
     await http.get(`/projects/${PROJECT}/pages/trash`).expect(401);
   });
 
-  it('удалённую страницу нельзя редактировать и откатывать; историю видит только полный доступ', async () => {
+  it('удалённую страницу нельзя редактировать и публиковать; историю видит только полный доступ', async () => {
     const page = await http.get(`/projects/${PROJECT}/pages/${pageId}`, owner).expect(200);
     expect(page.body.deletedAt).not.toBeNull();
 
     // 409 с понятным объяснением, а не общий «страница изменена другим пользователем»
     const save = await http.put(`/projects/${PROJECT}/pages/${pageId}`, owner).send({ version: 2, blocks: [] }).expect(409);
     expect(save.body.message).toContain('в корзине');
-    const rollback = await http.post(`/projects/${PROJECT}/pages/${pageId}/revisions/1/restore`, owner).expect(409);
-    expect(rollback.body.message).toContain('в корзине');
+    const publish = await http.post(`/projects/${PROJECT}/pages/${pageId}/publish`, owner).send({ version: 2 }).expect(409);
+    expect(publish.body.message).toContain('в корзине');
+    const discard = await http.delete(`/projects/${PROJECT}/pages/${pageId}/draft`, owner).expect(409);
+    expect(discard.body.message).toContain('в корзине');
 
     const revisions = await http.get(`/projects/${PROJECT}/pages/${pageId}/revisions`, owner).expect(200);
     expect(revisions.body).toHaveLength(2);

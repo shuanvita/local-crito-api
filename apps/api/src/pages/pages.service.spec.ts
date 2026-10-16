@@ -35,8 +35,17 @@ const storedBlocks = [
   { id: 'l', type: 'legacy', order: 20, enabled: true, data: { html: '<b>как было</b>', n: 1 } },
 ];
 
-function setup() {
-  const saved: { blocks?: unknown } = {};
+interface Saved {
+  /** Что ушло в `draft` при сохранении (Prisma.DbNull, если черновик снят). */
+  draft?: { blocks: unknown } | unknown;
+  /** Данные публикации (updateMany внутри транзакции). */
+  published?: { blocks?: unknown; version?: unknown };
+  revision?: { version: number; blocks: unknown };
+  notified: number;
+}
+
+function setup(stored: { draft?: unknown; draftUpdatedAt?: Date | null } = {}) {
+  const saved: Saved = { notified: 0 };
   const project = {
     id: 'p1',
     slug: 'rucode',
@@ -45,20 +54,43 @@ function setup() {
     manifest: JSON.stringify(manifest),
     manifestHash: 'hash',
   };
+  const page = {
+    id: 'pg',
+    version: 1,
+    blocks: storedBlocks,
+    meta: null,
+    headerConfig: null,
+    noFooterSpacing: false,
+    deletedAt: null,
+    draft: stored.draft ?? null,
+    draftUpdatedAt: stored.draftUpdatedAt ?? null,
+    draftById: null,
+    draftBy: null,
+    project,
+  };
   const tx = {
     page: {
       updateMany: async ({ data }: { data: { blocks: unknown } }) => {
-        saved.blocks = data.blocks;
+        saved.published = data;
         return { count: 1 };
       },
-      findUniqueOrThrow: async () => ({ id: 'pg', version: 2 }),
+      findUniqueOrThrow: async () => ({ version: 2 }),
     },
-    pageRevision: { create: async () => ({}) },
+    pageRevision: {
+      create: async ({ data }: { data: { version: number; blocks: unknown } }) => {
+        saved.revision = data;
+        return {};
+      },
+    },
   };
   const prisma = {
     project: { findUnique: async () => project },
     page: {
-      findFirst: async () => ({ id: 'pg', version: 1, blocks: storedBlocks, project }),
+      findFirst: async () => page,
+      updateMany: async ({ data }: { data: { draft: unknown } }) => {
+        saved.draft = data.draft;
+        return { count: 1 };
+      },
     },
     $transaction: async (fn: (client: typeof tx) => unknown) => fn(tx),
   } as unknown as PrismaService;
@@ -68,10 +100,17 @@ function setup() {
     prisma,
     access,
     new ManifestService(prisma),
-    { notify: async () => {} } as unknown as RevalidateService,
+    {
+      notify: async () => {
+        saved.notified++;
+      },
+    } as unknown as RevalidateService,
   );
   return { service, saved };
 }
+
+/** Блоки, ушедшие в черновик. */
+const draftBlocks = (saved: Saved) => (saved.draft as { blocks: unknown }).blocks;
 
 const fullAccess: Principal = {
   userId: 'u1',
@@ -96,7 +135,7 @@ describe('PagesService.update: очистка данных', () => {
       info({ body: '<p>ок</p><script>alert(1)</script><img src=x onerror=alert(2)>', text: '<b>не rich-text</b>' }),
       storedBlocks[1],
     ]));
-    const blocks = saved.blocks as Array<{ id: string; data: Record<string, string> }>;
+    const blocks = draftBlocks(saved) as Array<{ id: string; data: Record<string, string> }>;
     expect(blocks[0]?.data.body).toBe('<p>ок</p>');
     // поля без x-field: richtext не трогаем
     expect(blocks[0]?.data.text).toBe('<b>не rich-text</b>');
@@ -121,7 +160,7 @@ describe('PagesService.update: блоки без схемы', () => {
     const { service, saved } = setup();
     const hidden = { ...storedBlocks[1], enabled: false, order: 5 };
     await service.update(pageOnly, 'rucode', 'pg', dto([hidden, info({ body: '<p>новое</p>' })]));
-    expect((saved.blocks as Array<{ id: string }>).map((b) => b.id)).toEqual(['l', 'a']);
+    expect((draftBlocks(saved) as Array<{ id: string }>).map((b) => b.id)).toEqual(['l', 'a']);
   });
 
   it('ключи данных в другом порядке не считаются изменением', async () => {
@@ -141,6 +180,53 @@ describe('PagesService.update: блоки без схемы', () => {
     const { service, saved } = setup();
     const changed = { ...storedBlocks[1], data: { html: '<b>новое</b>' } };
     await service.update(fullAccess, 'rucode', 'pg', dto([info({}), changed]));
-    expect((saved.blocks as Array<{ data: unknown }>)[1]?.data).toEqual({ html: '<b>новое</b>' });
+    expect((draftBlocks(saved) as Array<{ data: unknown }>)[1]?.data).toEqual({ html: '<b>новое</b>' });
+  });
+});
+
+describe('PagesService: черновик и публикация', () => {
+  it('сохранение пишет черновик, но не публикует: ни версии, ни истории, ни вебхука', async () => {
+    const { service, saved } = setup();
+    await service.update(fullAccess, 'rucode', 'pg', dto([info({ text: 'правка' }), storedBlocks[1]]));
+    expect(draftBlocks(saved)).toHaveLength(2);
+    expect(saved.published).toBeUndefined();
+    expect(saved.revision).toBeUndefined();
+    expect(saved.notified).toBe(0);
+  });
+
+  it('содержимое, равное опубликованному, снимает черновик', async () => {
+    const { service, saved } = setup({ draft: { blocks: [] }, draftUpdatedAt: new Date() });
+    await service.update(fullAccess, 'rucode', 'pg', dto(storedBlocks));
+    // Prisma.DbNull, а не объект с блоками
+    expect((saved.draft as { blocks?: unknown }).blocks).toBeUndefined();
+  });
+
+  it('публикация переносит черновик в опубликованное, создаёт версию и вызывает вебхук', async () => {
+    const draft = {
+      blocks: [{ id: 'a', type: 'info', order: 10, enabled: true, data: { text: 'из черновика' } }, storedBlocks[1]],
+      meta: null,
+      headerConfig: null,
+      noFooterSpacing: false,
+    };
+    const { service, saved } = setup({ draft, draftUpdatedAt: new Date() });
+    await service.publish(fullAccess, 'rucode', 'pg', 1);
+    const published = (saved.published?.blocks ?? []) as Array<{ data: unknown }>;
+    expect(published[0]?.data).toEqual({ text: 'из черновика' });
+    expect(saved.revision).toMatchObject({ version: 2 });
+    expect(saved.notified).toBe(1);
+  });
+
+  it('публиковать без черновика нечего', async () => {
+    const { service } = setup();
+    await expect(service.publish(fullAccess, 'rucode', 'pg', 1)).rejects.toThrow('Нет изменений для публикации');
+  });
+
+  it('редактор отдельных страниц сравнивает блоки без схемы с черновиком, а не с опубликованным', async () => {
+    const changedByOwner = { ...storedBlocks[1], data: { html: '<b>правка владельца</b>' } };
+    const draft = { blocks: [storedBlocks[0], changedByOwner], meta: null, headerConfig: null, noFooterSpacing: false };
+    const { service } = setup({ draft, draftUpdatedAt: new Date() });
+    await expect(
+      service.update(pageOnly, 'rucode', 'pg', dto([info({ text: 'ещё правка' }), changedByOwner])),
+    ).resolves.toBeDefined();
   });
 });

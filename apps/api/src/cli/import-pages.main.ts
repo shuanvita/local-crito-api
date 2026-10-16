@@ -63,7 +63,7 @@ try {
           .then((page) => (page ? { id: page.id, version: page.version, deleted: page.deletedAt !== null } : null)),
       validateBlocks: (slug, blocks) => manifest.validateBlocks(slug, blocks),
       create: (p, slug, dto) => pages.create(p, slug, dto),
-      update: (p, slug, id, dto) => pages.update(p, slug, id, dto),
+      update: (p, slug, id, dto) => pages.updateAndPublish(p, slug, id, dto),
     },
     data,
     { project: values.project, dryRun: values['dry-run'], overwrite: values.overwrite },

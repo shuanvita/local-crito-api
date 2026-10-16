@@ -28,7 +28,7 @@ const device = ref<Device>('desktop')
 const loading = ref(true)
 const frameKey = ref(0)
 
-// «С моими правками»: сайт получает черновик по postMessage (сохранение = публикация, поэтому черновика в CMS нет).
+// «С моими правками»: сайт получает черновик по postMessage (это может быть несохранённая правка, черновик или открытая версия из истории: на сайте их нет до публикации).
 type Mode = 'draft' | 'published'
 const mode = ref<Mode>('draft')
 const frame = ref<HTMLIFrameElement>()

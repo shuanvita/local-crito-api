@@ -4,16 +4,28 @@ import { AccessService } from '../auth/access.service.js';
 import type { Principal } from '../auth/auth.types.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { normalizeSlug } from '../common/slug.js';
-import type { Prisma } from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
+import type { Page } from '../generated/prisma/client.js';
 import { ManifestService } from '../manifest/manifest.service.js';
 import type { PageBlockInput } from '../manifest/manifest.service.js';
+import type { PageDraft } from '@crito/contract';
 import { CreatePageDto, UpdatePageDto } from './pages.dto.js';
 import { RevalidateService } from './revalidate.service.js';
 
 type PageContent = Pick<CreatePageDto, 'blocks' | 'meta' | 'headerConfig' | 'noFooterSpacing'>;
 
+/** Содержимое страницы одним JSON: так лежит черновик и так сравнивается с опубликованным. */
+type StoredContent = Pick<PageDraft, 'blocks' | 'meta' | 'headerConfig' | 'noFooterSpacing'>;
+
+type PageRow = Page & {
+  project?: unknown;
+  draftBy?: { email: string; name: string | null } | null;
+};
+
 /**
- * Страницы проекта. Удаление мягкое: страница уходит в корзину (`deletedAt`), пропадает с сайта и из списков,
+ * Страницы проекта. Правки сначала сохраняются как черновик (`draft`), на сайт и в историю они попадают только
+ * при публикации: тогда растёт `version` и создаётся `PageRevision`.
+ * Удаление мягкое: страница уходит в корзину (`deletedAt`), пропадает с сайта и из списков,
  * но хранится вместе с историей. Из корзины её можно восстановить или удалить навсегда (оба действия и просмотр
  * корзины требуют доступа ко всему проекту). Адрес остаётся занятым, пока страница в корзине.
  */
@@ -63,7 +75,7 @@ export class PagesService {
     this.access.assertCanEditPage(principal, projectSlug, id);
     const page = await this.findPage(projectSlug, id);
     this.assertVisible(principal, projectSlug, page);
-    return page;
+    return this.toDetail(page);
   }
 
   async create(principal: Principal, projectSlug: string, dto: CreatePageDto) {
@@ -95,10 +107,13 @@ export class PagesService {
       },
     });
     this.revalidate.notify(project);
-    return page;
+    return this.toDetail(page);
   }
 
-  /** Сохранение = публикация: версия повышается, снимок уходит в историю, кэш сайта сбрасывается. */
+  /**
+   * Сохраняет правки как черновик: версия не растёт, история и сайт не меняются.
+   * Если содержимое совпало с опубликованным, черновик снимается (нечего публиковать).
+   */
   async update(principal: Principal, projectSlug: string, id: string, dto: UpdatePageDto) {
     this.access.assertCanEditPage(principal, projectSlug, id);
     const existing = await this.findPage(projectSlug, id);
@@ -107,33 +122,94 @@ export class PagesService {
     }
     await this.manifest.validateBlocks(projectSlug, dto.blocks);
     if (!this.access.hasFullProjectAccess(principal, projectSlug)) {
-      await this.assertReadonlyBlocksUnchanged(projectSlug, existing.blocks as unknown as PageBlockInput[], dto.blocks);
+      // Сравниваем с тем, что редактор видел при открытии: с черновиком, если он есть.
+      const base = (existing.draft ? this.draftContent(existing) : this.publishedContent(existing)).blocks;
+      await this.assertReadonlyBlocksUnchanged(projectSlug, base as unknown as PageBlockInput[], dto.blocks);
     }
     dto = { ...dto, blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks) };
 
-    const page = await this.prisma.$transaction(async (tx) => {
-      // Оптимистичная блокировка: обновляем только если версия не изменилась с момента открытия
-      // и страницу за это время не удалили.
+    const content = this.snapshot(dto);
+    const same = isDeepStrictEqual(content, this.publishedContent(existing));
+
+    // Оптимистичная блокировка: черновик пишется, только если опубликованную версию не обогнали
+    // и страницу за это время не удалили.
+    const { count } = await this.prisma.page.updateMany({
+      where: { id, version: dto.version, deletedAt: null },
+      data: same
+        ? { draft: Prisma.DbNull, draftUpdatedAt: null, draftById: null }
+        : {
+            draft: content as unknown as Prisma.InputJsonValue,
+            draftUpdatedAt: new Date(),
+            draftById: principal.userId,
+          },
+    });
+    if (count === 0) {
+      throw new ConflictException('Страница опубликована другим пользователем или удалена, обновите её');
+    }
+    return this.toDetail(await this.findPage(projectSlug, id));
+  }
+
+  /** Публикация: черновик становится опубликованной версией, версия растёт, снимок уходит в историю, кэш сайта сбрасывается. */
+  async publish(principal: Principal, projectSlug: string, id: string, version: number) {
+    this.access.assertCanEditPage(principal, projectSlug, id);
+    const existing = await this.findPage(projectSlug, id);
+    if (existing.deletedAt) {
+      throw new ConflictException('Страница в корзине: сначала восстановите её');
+    }
+    if (!existing.draft) throw new ConflictException('Нет изменений для публикации');
+
+    // Манифест мог измениться после сохранения черновика: проверяем и очищаем заново.
+    const draft = this.draftContent(existing);
+    await this.manifest.validateBlocks(projectSlug, draft.blocks);
+    const blocks = await this.manifest.sanitizeBlocks(projectSlug, draft.blocks);
+    const content = {
+      ...this.contentData({ ...draft, meta: draft.meta ?? undefined, headerConfig: draft.headerConfig ?? undefined, blocks }),
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      // Версия не должна измениться, а черновик не должен смениться между чтением и публикацией.
       const { count } = await tx.page.updateMany({
-        where: { id, version: dto.version, deletedAt: null },
+        where: { id, version, deletedAt: null, draftUpdatedAt: existing.draftUpdatedAt },
         data: {
           version: { increment: 1 },
           updatedById: principal.userId,
-          ...this.contentData(dto),
+          ...content,
+          draft: Prisma.DbNull,
+          draftUpdatedAt: null,
+          draftById: null,
         },
       });
       if (count === 0) {
         throw new ConflictException('Страница изменена другим пользователем или удалена, обновите её');
       }
-      const saved = await tx.page.findUniqueOrThrow({ where: { id } });
+      const saved = await tx.page.findUniqueOrThrow({ where: { id }, select: { version: true } });
       await tx.pageRevision.create({
-        data: { pageId: id, version: saved.version, authorId: principal.userId, ...this.contentData(dto) },
+        data: { pageId: id, version: saved.version, authorId: principal.userId, ...content },
       });
-      return saved;
     });
 
     this.revalidate.notify(existing.project);
-    return page;
+    return this.toDetail(await this.findPage(projectSlug, id));
+  }
+
+  /** Сохранить и сразу опубликовать (импорт контента). Если содержимое не изменилось, версия не растёт. */
+  async updateAndPublish(principal: Principal, projectSlug: string, id: string, dto: UpdatePageDto) {
+    const saved = await this.update(principal, projectSlug, id, dto);
+    return saved.draft ? this.publish(principal, projectSlug, id, saved.version) : saved;
+  }
+
+  /** Отбрасывает черновик: редактор возвращается к опубликованной версии. */
+  async discardDraft(principal: Principal, projectSlug: string, id: string) {
+    this.access.assertCanEditPage(principal, projectSlug, id);
+    const existing = await this.findPage(projectSlug, id);
+    if (existing.deletedAt) {
+      throw new ConflictException('Страница в корзине: сначала восстановите её');
+    }
+    await this.prisma.page.updateMany({
+      where: { id },
+      data: { draft: Prisma.DbNull, draftUpdatedAt: null, draftById: null },
+    });
+    return this.toDetail(await this.findPage(projectSlug, id));
   }
 
   /** Мягкое удаление: страница уходит в корзину, пропадает с сайта, история сохраняется. */
@@ -159,7 +235,7 @@ export class PagesService {
     });
     if (count === 0) throw new ConflictException('Страница не в корзине');
     this.revalidate.notify(page.project);
-    return this.prisma.page.findUniqueOrThrow({ where: { id } });
+    return this.toDetail(await this.findPage(projectSlug, id));
   }
 
   /** Окончательное удаление страницы из корзины вместе с историей версий. Необратимо. */
@@ -181,22 +257,25 @@ export class PagesService {
     });
   }
 
-  /** Откат: содержимое старой ревизии сохраняется как новая версия, история не переписывается. */
-  async restoreRevision(principal: Principal, projectSlug: string, id: string, version: number) {
+  /** Содержимое опубликованной версии: админка показывает его в предпросмотре и открывает в редакторе. */
+  async revision(principal: Principal, projectSlug: string, id: string, version: number) {
     this.access.assertCanEditPage(principal, projectSlug, id);
     const page = await this.findPage(projectSlug, id);
+    this.assertVisible(principal, projectSlug, page);
     const revision = await this.prisma.pageRevision.findUnique({
       where: { pageId_version: { pageId: id, version } },
+      include: { author: { select: { email: true, name: true } } },
     });
-    if (!revision) throw new NotFoundException('Ревизия не найдена');
-
-    return this.update(principal, projectSlug, id, {
-      version: page.version,
-      blocks: revision.blocks as unknown as UpdatePageDto['blocks'],
-      meta: (revision.meta as UpdatePageDto['meta']) ?? undefined,
-      headerConfig: revision.headerConfig ?? undefined,
+    if (!revision) throw new NotFoundException('Версия не найдена');
+    return {
+      version: revision.version,
+      createdAt: revision.createdAt,
+      author: revision.author,
+      blocks: revision.blocks as unknown as StoredContent['blocks'],
+      meta: (revision.meta ?? null) as StoredContent['meta'],
+      headerConfig: revision.headerConfig,
       noFooterSpacing: revision.noFooterSpacing,
-    });
+    };
   }
 
   /** Удалённую страницу видит только тот, у кого есть доступ ко всему проекту (для просмотра истории в корзине). */
@@ -233,6 +312,43 @@ export class PagesService {
     }
   }
 
+  /** Содержимое в виде, пригодном для хранения в черновике и для сравнения (без классов DTO и undefined). */
+  private snapshot(dto: PageContent): StoredContent {
+    return JSON.parse(
+      JSON.stringify({
+        blocks: dto.blocks,
+        meta: dto.meta ?? null,
+        headerConfig: dto.headerConfig ?? null,
+        noFooterSpacing: dto.noFooterSpacing ?? false,
+      }),
+    ) as StoredContent;
+  }
+
+  private publishedContent(page: Page): StoredContent {
+    return {
+      blocks: page.blocks as unknown as StoredContent['blocks'],
+      meta: (page.meta ?? null) as StoredContent['meta'],
+      headerConfig: page.headerConfig,
+      noFooterSpacing: page.noFooterSpacing,
+    };
+  }
+
+  private draftContent(page: Page): StoredContent {
+    return page.draft as unknown as StoredContent;
+  }
+
+  /** Ответ API: опубликованное содержимое и черновик отдельным полем; служебные связи наружу не уходят. */
+  private toDetail(page: PageRow) {
+    const { project: _project, draft, draftUpdatedAt, draftById: _draftById, draftBy, ...rest } = page;
+    return {
+      ...rest,
+      draft:
+        draft && draftUpdatedAt
+          ? { ...this.draftContent(page), updatedAt: draftUpdatedAt, author: draftBy ?? null }
+          : null,
+    };
+  }
+
   private contentData(dto: PageContent) {
     return {
       blocks: dto.blocks as unknown as Prisma.InputJsonValue,
@@ -255,7 +371,10 @@ export class PagesService {
   private async findPage(projectSlug: string, id: string) {
     const page = await this.prisma.page.findFirst({
       where: { id, project: { slug: projectSlug } },
-      include: { project: { select: { id: true, slug: true, revalidateUrl: true, revalidateSecret: true } } },
+      include: {
+        project: { select: { id: true, slug: true, revalidateUrl: true, revalidateSecret: true } },
+        draftBy: { select: { email: true, name: true } },
+      },
     });
     if (!page) throw new NotFoundException('Страница не найдена');
     return page;

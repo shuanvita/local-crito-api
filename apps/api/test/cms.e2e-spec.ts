@@ -290,49 +290,116 @@ describe('страницы: жизненный цикл', () => {
     await http.get('/public/other/pages/index').expect(404);
   });
 
-  it('сохранение повышает версию, пишет историю и защищает от конфликтов', async () => {
-    const v2 = await http
+  it('сохранение пишет черновик: сайт, версия, история и вебхук не меняются', async () => {
+    webhook.calls.length = 0;
+    const saved = await http
       .put(`/projects/rucode/pages/${pageId}`, admin)
       .send({ version: 1, blocks: [infoBlock({ title: 'Вторая версия' })] })
       .expect(200);
-    expect(v2.body.version).toBe(2);
+    expect(saved.body.version).toBe(1);
+    expect(saved.body.blocks[0].data.title).toBe('Привет');
+    expect(saved.body.draft.blocks[0].data.title).toBe('Вторая версия');
+    expect(saved.body.draft.author.email).toBe('admin@e2e.test');
+    expect(saved.body).not.toHaveProperty('project');
 
-    // Второй редактор открыл страницу до сохранения и пытается сохранить поверх.
+    // повторное сохранение перезаписывает черновик, версия по-прежнему 1
+    const again = await http
+      .put(`/projects/rucode/pages/${pageId}`, admin)
+      .send({ version: 1, blocks: [infoBlock({ title: 'Вторая версия, правка' })] })
+      .expect(200);
+    expect(again.body.draft.blocks[0].data.title).toBe('Вторая версия, правка');
+
+    const pub = await http.get('/public/rucode/pages/index').expect(200);
+    expect(pub.body.version).toBe(1);
+    expect(pub.body.blocks[0].data.title).toBe('Привет');
+    expect(await ctx.prisma.pageRevision.count({ where: { pageId } })).toBe(1);
+
+    // черновик виден при открытии страницы
+    const page = await http.get(`/projects/rucode/pages/${pageId}`, admin).expect(200);
+    expect(page.body.draft.blocks[0].data.title).toBe('Вторая версия, правка');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(webhook.calls).toEqual([]);
+  });
+
+  it('публикация создаёт версию, пишет историю, сбрасывает черновик и вызывает вебхук', async () => {
+    webhook.calls.length = 0;
+    // опубликовать на устаревшей версии нельзя
+    await http.post(`/projects/rucode/pages/${pageId}/publish`, admin).send({ version: 7 }).expect(409);
+
+    const v2 = await http.post(`/projects/rucode/pages/${pageId}/publish`, admin).send({ version: 1 }).expect(201);
+    expect(v2.body.version).toBe(2);
+    expect(v2.body.draft).toBeNull();
+    expect(v2.body.blocks[0].data.title).toBe('Вторая версия, правка');
+
+    // второй редактор открыл страницу до публикации и пытается сохранить поверх
     await http
       .put(`/projects/rucode/pages/${pageId}`, admin)
       .send({ version: 1, blocks: [infoBlock({ title: 'Устаревшая правка' })] })
       .expect(409);
+    // и опубликовать повторно тоже нечего
+    const empty = await http.post(`/projects/rucode/pages/${pageId}/publish`, admin).send({ version: 2 }).expect(409);
+    expect(empty.body.message).toContain('Нет изменений');
 
     const pub = await http.get('/public/rucode/pages/index').expect(200);
     expect(pub.body.version).toBe(2);
-    expect(pub.body.blocks[0].data.title).toBe('Вторая версия');
+    expect(pub.body.blocks[0].data.title).toBe('Вторая версия, правка');
 
     const revisions = await http.get(`/projects/rucode/pages/${pageId}/revisions`, admin).expect(200);
     expect(revisions.body.map((r: { version: number }) => r.version)).toEqual([2, 1]);
     expect(revisions.body[0].author.email).toBe('admin@e2e.test');
+
+    // вебхук вызывается в фоне, уже после ответа клиенту, с расшифрованным секретом
+    await vi.waitFor(() => expect(webhook.calls).toEqual([{ method: 'POST', secret: WEBHOOK_SECRET }]));
   });
 
-  it('откат создаёт новую версию, а история не переписывается', async () => {
-    const restored = await http.post(`/projects/rucode/pages/${pageId}/revisions/1/restore`, admin).expect(201);
+  it('содержимое версии открывается без побочных эффектов; публикация старого содержимого даёт новую версию', async () => {
+    const old = await http.get(`/projects/rucode/pages/${pageId}/revisions/1`, admin).expect(200);
+    expect(old.body.version).toBe(1);
+    expect(old.body.blocks[0].data.title).toBe('Привет');
+    expect(old.body.headerConfig).toBe('home');
+    await http.get(`/projects/rucode/pages/${pageId}/revisions/99`, admin).expect(404);
+
+    // «Открыть версию 1 в редакторе» = сохранить её содержимое черновиком и опубликовать
+    await http
+      .put(`/projects/rucode/pages/${pageId}`, admin)
+      .send({ version: 2, blocks: old.body.blocks, meta: old.body.meta ?? undefined, headerConfig: old.body.headerConfig, noFooterSpacing: old.body.noFooterSpacing })
+      .expect(200);
+    const restored = await http.post(`/projects/rucode/pages/${pageId}/publish`, admin).send({ version: 2 }).expect(201);
     expect(restored.body.version).toBe(3);
     const pub = await http.get('/public/rucode/pages/index').expect(200);
     expect(pub.body.blocks[0].data.title).toBe('Привет');
 
     const revisions = await http.get(`/projects/rucode/pages/${pageId}/revisions`, admin).expect(200);
     expect(revisions.body).toHaveLength(3);
-    await http.post(`/projects/rucode/pages/${pageId}/revisions/99/restore`, admin).expect(404);
   });
 
-  it('вызывает вебхук сайта с расшифрованным секретом при каждой публикации', async () => {
-    webhook.calls.length = 0;
+  it('содержимое, совпавшее с опубликованным, снимает черновик; черновик можно отбросить', async () => {
     const page = await http.get(`/projects/rucode/pages/${pageId}`, admin).expect(200);
+    const changed = await http
+      .put(`/projects/rucode/pages/${pageId}`, admin)
+      .send({ version: page.body.version, blocks: [infoBlock({ title: 'Временная правка' })] })
+      .expect(200);
+    expect(changed.body.draft).not.toBeNull();
+
+    const same = await http
+      .put(`/projects/rucode/pages/${pageId}`, admin)
+      .send({
+        version: page.body.version,
+        blocks: page.body.blocks,
+        meta: page.body.meta ?? undefined,
+        headerConfig: page.body.headerConfig,
+        noFooterSpacing: page.body.noFooterSpacing,
+      })
+      .expect(200);
+    expect(same.body.draft).toBeNull();
+
     await http
       .put(`/projects/rucode/pages/${pageId}`, admin)
-      .send({ version: page.body.version, blocks: page.body.blocks })
+      .send({ version: page.body.version, blocks: [infoBlock({ title: 'Ещё правка' })] })
       .expect(200);
-
-    // вебхук вызывается в фоне, уже после ответа клиенту
-    await vi.waitFor(() => expect(webhook.calls).toEqual([{ method: 'POST', secret: WEBHOOK_SECRET }]));
+    const discarded = await http.delete(`/projects/rucode/pages/${pageId}/draft`, admin).expect(200);
+    expect(discarded.body.draft).toBeNull();
+    expect(discarded.body.version).toBe(page.body.version);
   });
 
   it('удаление страницы убирает её с сайта и из списка (подробности в разделе про корзину)', async () => {
@@ -431,7 +498,12 @@ describe('права: доступ только к отдельным стран
       b.type === 'info' ? { ...b, data: { title: 'Правка редактора' } } : b,
     );
     await http.put(`/projects/rucode/pages/${pageA}`, editor).send({ version: page.body.version, blocks }).expect(200);
+    const published = await http.post(`/projects/rucode/pages/${pageA}/publish`, editor).send({ version: page.body.version }).expect(201);
+    expect(published.body.version).toBe(page.body.version + 1);
     await http.put(`/projects/rucode/pages/${pageB}`, editor).send({ version: 1, blocks: [] }).expect(403);
+    await http.post(`/projects/rucode/pages/${pageB}/publish`, editor).send({ version: 1 }).expect(403);
+    await http.delete(`/projects/rucode/pages/${pageB}/draft`, editor).expect(403);
+    await http.get(`/projects/rucode/pages/${pageB}/revisions/1`, editor).expect(403);
   });
 
   it('не может создавать и удалять страницы, менять проект и ключи', async () => {
@@ -548,7 +620,10 @@ describe('медиатека', () => {
     const res = await http.delete(`/projects/rucode/media/${mediaId}`, admin).expect(409);
     expect(res.body.pages).toEqual(['/with-image']);
 
+    // черновик без файла ещё не освобождает его: на сайте страница с файлом, пока правку не опубликуют
     await http.put(`/projects/rucode/pages/${page.body.id}`, admin).send({ version: 1, blocks: [] }).expect(200);
+    await http.delete(`/projects/rucode/media/${mediaId}`, admin).expect(409);
+    await http.post(`/projects/rucode/pages/${page.body.id}/publish`, admin).send({ version: 1 }).expect(201);
     await http.delete(`/projects/rucode/media/${mediaId}`, admin).expect(204);
     await http.get(mediaUrlPath).expect(404);
   });
@@ -574,7 +649,7 @@ describe('импорт страниц (реальные сервисы)', () => 
         ctx.prisma.page.findFirst({ where: { slug, project: { slug: project } }, select: { id: true, version: true } }),
       validateBlocks: (project: string, blocks: Parameters<ManifestService['validateBlocks']>[1]) => manifestService.validateBlocks(project, blocks),
       create: (p: typeof principal, project: string, dto: Parameters<PagesService['create']>[2]) => pages.create(p, project, dto),
-      update: (p: typeof principal, project: string, id: string, dto: Parameters<PagesService['update']>[3]) => pages.update(p, project, id, dto),
+      update: (p: typeof principal, project: string, id: string, dto: Parameters<PagesService['update']>[3]) => pages.updateAndPublish(p, project, id, dto),
     };
     const data = {
       project: 'rucode',
@@ -597,9 +672,20 @@ describe('импорт страниц (реальные сервисы)', () => 
     const second = await importPages(deps, data, options);
     expect(second.map((r) => r.status)).toEqual(['skipped', 'failed']);
 
-    const third = await importPages(deps, data, { ...options, overwrite: true });
+    // то же содержимое: новой версии нет (нечего публиковать)
+    const same = await importPages(deps, data, { ...options, overwrite: true });
+    expect(same[0]?.status).toBe('updated');
+    expect((await http.get('/public/rucode/pages/imp-1').expect(200)).body.version).toBe(1);
+
+    // изменённое содержимое публикуется сразу, без черновика
+    const changed = { ...data, pages: [{ slug: '/imp-1', blocks: [infoBlock({ title: 'Импорт 2' })] }] };
+    const third = await importPages(deps, changed, { ...options, overwrite: true });
     expect(third[0]?.status).toBe('updated');
-    expect((await http.get('/public/rucode/pages/imp-1').expect(200)).body.version).toBe(2);
+    const pub = await http.get('/public/rucode/pages/imp-1').expect(200);
+    expect(pub.body.version).toBe(2);
+    expect(pub.body.blocks[0].data.title).toBe('Импорт 2');
+    const row = await ctx.prisma.page.findFirstOrThrow({ where: { slug: '/imp-1' } });
+    expect(row.draft).toBeNull();
   });
 });
 
@@ -652,7 +738,8 @@ describe('эксплуатация и защитные механизмы', () =
       const page = await http.post('/projects/rucode/pages', admin).send({ slug: '/slow-site', blocks: [] }).expect(201);
 
       const started = Date.now();
-      await http.put(`/projects/rucode/pages/${page.body.id}`, admin).send({ version: 1, blocks: [] }).expect(200);
+      await http.put(`/projects/rucode/pages/${page.body.id}`, admin).send({ version: 1, blocks: [infoBlock()] }).expect(200);
+      await http.post(`/projects/rucode/pages/${page.body.id}/publish`, admin).send({ version: 1 }).expect(201);
       expect(Date.now() - started).toBeLessThan(1500);
     } finally {
       await http.patch('/projects/rucode', admin).send({ revalidateUrl: webhook.url });

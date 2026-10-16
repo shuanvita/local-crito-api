@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import type { PreviewDraft } from '~/utils/site'
-import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, ProjectSummary, UpdatePageRequest } from '@crito/contract'
+import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, PageRevisionDetail, ProjectSummary, PublishPageRequest, UpdatePageRequest } from '@crito/contract'
 
 interface Draft {
   blocks: ContentBlock[]
@@ -115,15 +115,37 @@ function toPayload(value: Draft) {
   }
 }
 
-function load(source: PageDetail) {
-  draft.value = {
+/** Содержимое страницы в том виде, в каком его отдаёт API (опубликованное, черновик или версия из истории). */
+interface PageSource {
+  blocks: ContentBlock[]
+  meta?: ContentPageMeta | null
+  headerConfig: string | null
+  noFooterSpacing: boolean
+}
+
+function toDraft(source: PageSource): Draft {
+  return {
     blocks: [...source.blocks].sort((a, b) => a.order - b.order).map(block => structuredClone(block)),
     meta: { ...source.meta },
     headerConfig: source.headerConfig ?? '',
     noFooterSpacing: source.noFooterSpacing
   }
+}
+
+// Три состояния содержимого: опубликованное (на сайте), сохранённый черновик и то, что сейчас в редакторе.
+// `snapshot` это сохранённое на сервере (черновик, а если его нет, опубликованное).
+const publishedPayload = ref('')
+const hasDraft = ref(false)
+/** Номер версии из истории, открытой в редакторе и ещё не сохранённой; null: открыта обычная страница. */
+const viewingVersion = ref<number | null>(null)
+
+function load(source: PageDetail) {
+  draft.value = toDraft(source.draft ?? source)
   baseVersion.value = source.version
+  hasDraft.value = !!source.draft
+  publishedPayload.value = JSON.stringify(toPayload(toDraft(source)))
   snapshot.value = JSON.stringify(toPayload(draft.value))
+  viewingVersion.value = null
   conflict.value = false
   if (selected.value !== 'page' && !draft.value.blocks.some(block => block.id === selected.value)) {
     selected.value = 'page'
@@ -135,7 +157,10 @@ if (page.value) load(page.value)
 // Удалённую страницу нельзя сохранять: сначала её нужно восстановить из корзины.
 const trashed = computed(() => !!page.value?.deletedAt)
 
+/** Есть правки, которых нет даже в черновике на сервере. */
 const dirty = computed(() => !!draft.value && JSON.stringify(toPayload(draft.value)) !== snapshot.value)
+/** Содержимое в редакторе отличается от опубликованного: есть что публиковать. */
+const unpublished = computed(() => !!draft.value && JSON.stringify(toPayload(draft.value)) !== publishedPayload.value)
 
 const selectedBlockId = computed(() => selected.value === 'page' ? null : selected.value)
 
@@ -192,23 +217,88 @@ function removeBlock(index: number) {
 // --- сохранение ---
 const saving = ref(false)
 
-async function save() {
-  if (!draft.value || !dirty.value || saving.value) return
-  saving.value = true
+const publishing = ref(false)
+
+/** Сохраняет правки черновиком. Сайт и версия не меняются. Возвращает ответ API или null при ошибке. */
+async function saveDraft(): Promise<PageDetail | null> {
+  if (!draft.value) return null
   try {
     const saved = await api<PageDetail>(pageUrl.value, {
       method: 'PUT',
       body: { version: baseVersion.value, ...toPayload(draft.value) } satisfies UpdatePageRequest
     })
     load(saved)
-    previewReload.value++
-    toast.add({ title: `Сохранено, версия ${saved.version}`, color: 'success' })
+    return saved
   } catch (err) {
     if ((err as { statusCode?: number }).statusCode === 409) conflict.value = true
     toast.add({ title: 'Не удалось сохранить', description: apiErrorMessage(err), color: 'error' })
+    return null
+  }
+}
+
+async function save() {
+  if (!dirty.value || saving.value || publishing.value || trashed.value) return
+  saving.value = true
+  try {
+    const saved = await saveDraft()
+    if (saved) {
+      toast.add({ title: saved.draft ? 'Черновик сохранён' : 'Правок нет: страница совпадает с опубликованной', color: 'success' })
+    }
   } finally {
     saving.value = false
   }
+}
+
+/** Публикация: при несохранённых правках сначала сохраняет их черновиком, затем выпускает новую версию. */
+async function publish() {
+  if (!unpublished.value || publishing.value || saving.value || trashed.value) return
+  publishing.value = true
+  try {
+    if (dirty.value) {
+      const saved = await saveDraft()
+      if (!saved) return
+      if (!saved.draft) {
+        toast.add({ title: 'Нечего публиковать: страница совпадает с опубликованной', color: 'neutral' })
+        return
+      }
+    }
+    const published = await api<PageDetail>(`${pageUrl.value}/publish`, {
+      method: 'POST',
+      body: { version: baseVersion.value } satisfies PublishPageRequest
+    })
+    load(published)
+    previewReload.value++
+    toast.add({ title: `Опубликовано, версия ${published.version}`, color: 'success' })
+  } catch (err) {
+    if ((err as { statusCode?: number }).statusCode === 409) conflict.value = true
+    toast.add({ title: 'Не удалось опубликовать', description: apiErrorMessage(err), color: 'error' })
+  } finally {
+    publishing.value = false
+  }
+}
+
+/** Отбрасывает сохранённый черновик и несохранённые правки: редактор возвращается к опубликованной версии. */
+async function discard() {
+  if (!hasDraft.value && !dirty.value) return
+  if (!window.confirm('Отбросить черновик? Страница вернётся к опубликованной версии, правки пропадут.')) return
+  try {
+    load(await api<PageDetail>(`${pageUrl.value}/draft`, { method: 'DELETE' }))
+    toast.add({ title: 'Черновик отброшен', color: 'success' })
+  } catch (err) {
+    toast.add({ title: 'Не удалось отбросить черновик', description: apiErrorMessage(err), color: 'error' })
+  }
+}
+
+/** Версия из истории открывается в редакторе (и в предпросмотре) как несохранённая правка; сайт не меняется. */
+function openRevision(revision: PageRevisionDetail) {
+  if (dirty.value && !window.confirm('Есть несохранённые изменения. Открыть версию и потерять их?')) return
+  draft.value = toDraft(revision)
+  viewingVersion.value = revision.version
+  conflict.value = false
+  if (selected.value !== 'page' && !draft.value.blocks.some(block => block.id === selected.value)) {
+    selected.value = 'page'
+  }
+  revisionsOpen.value = false
 }
 
 async function reload() {
@@ -263,15 +353,21 @@ useEventListener(window, 'beforeunload', (event) => {
         </template>
 
         <template v-if="draft" #right>
-          <UBadge :label="`v${baseVersion}`" color="neutral" variant="subtle" size="md" />
-          <!-- состояние сохранения видно сразу: либо «Есть изменения», либо «Сохранено» -->
+          <UTooltip text="Опубликованная версия, которую видят посетители">
+            <UBadge :label="`v${baseVersion}`" color="neutral" variant="subtle" size="md" />
+          </UTooltip>
+          <!-- три состояния: правки не сохранены, сохранён черновик (на сайте его нет), всё опубликовано -->
           <span v-if="dirty" class="flex items-center gap-1.5 text-sm text-warning">
             <span class="size-2 rounded-full bg-warning" />
-            Есть изменения
+            Не сохранено
+          </span>
+          <span v-else-if="unpublished" class="flex items-center gap-1.5 text-sm text-info">
+            <UIcon name="i-lucide-file-pen-line" />
+            Черновик, не опубликован
           </span>
           <span v-else class="flex items-center gap-1.5 text-sm text-muted">
             <UIcon name="i-lucide-check" />
-            Сохранено
+            Опубликовано
           </span>
           <!-- на широком экране предпросмотр уже рядом, поэтому достаточно иконки; на узком нужна подпись -->
           <UTooltip :text="wide && previewOpen ? 'Скрыть предпросмотр' : 'Показать предпросмотр'">
@@ -297,9 +393,39 @@ useEventListener(window, 'beforeunload', (event) => {
               @click="revisionsOpen = true"
             />
           </UTooltip>
-          <!-- сохранение = публикация: кнопка называет это прямо, чтобы её не принимали за черновик -->
-          <UTooltip :text="dirty ? 'Сохранение сразу публикует страницу на сайте' : 'Нет изменений для публикации'">
-            <UButton label="Опубликовать" icon="i-lucide-upload" :disabled="!dirty || trashed" :loading="saving" class="cursor-pointer" @click="save" />
+          <UTooltip v-if="hasDraft || dirty" text="Отбросить черновик и вернуться к опубликованной версии">
+            <UButton
+              icon="i-lucide-undo-2"
+              color="neutral"
+              variant="ghost"
+              aria-label="Отбросить черновик"
+              :disabled="trashed"
+              class="cursor-pointer"
+              @click="discard"
+            />
+          </UTooltip>
+          <!-- «Сохранить» пишет черновик, сайт не меняется; «Опубликовать» выпускает новую версию -->
+          <UTooltip text="Сохраняет черновик. На сайте страница не изменится">
+            <UButton
+              label="Сохранить"
+              icon="i-lucide-save"
+              color="neutral"
+              variant="subtle"
+              :disabled="!dirty || trashed || publishing"
+              :loading="saving"
+              class="cursor-pointer"
+              @click="save"
+            />
+          </UTooltip>
+          <UTooltip :text="unpublished ? 'Опубликовать как новую версию: правки появятся на сайте' : 'Нет изменений для публикации'">
+            <UButton
+              label="Опубликовать"
+              icon="i-lucide-upload"
+              :disabled="!unpublished || trashed || saving"
+              :loading="publishing"
+              class="cursor-pointer"
+              @click="publish"
+            />
           </UTooltip>
         </template>
       </UDashboardNavbar>
@@ -335,6 +461,18 @@ useEventListener(window, 'beforeunload', (event) => {
           title="Манифест блоков не загружен"
           description="Без манифеста нельзя добавлять блоки и сохранять страницу. CI сайта должен опубликовать его (PUT /projects/:project/manifest)."
           class="mb-4"
+        />
+
+        <!-- версия из истории открыта как правка: сайт не менялся, пока её не опубликуют -->
+        <UAlert
+          v-if="viewingVersion !== null && !conflict"
+          color="info"
+          variant="subtle"
+          icon="i-lucide-history"
+          :title="`Открыта версия ${viewingVersion} из истории`"
+          description="Она показана в предпросмотре, но пока не сохранена. Нажмите «Опубликовать», чтобы вернуть её на сайт новой версией, или «Сохранить», чтобы оставить черновиком."
+          class="mb-4 shrink-0"
+          :actions="[{ label: 'Вернуться к текущей', color: 'neutral', variant: 'subtle', onClick: reload }]"
         />
 
         <UAlert
@@ -607,7 +745,7 @@ useEventListener(window, 'beforeunload', (event) => {
             v-if="wide && previewOpen"
             class="sticky top-0 h-[calc(100vh-7rem)] min-w-0 border-l border-default pl-6"
           >
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" expandable @expand="previewExpanded = true" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="unpublished" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" expandable @expand="previewExpanded = true" />
           </aside>
         </div>
 
@@ -620,7 +758,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ content: 'max-w-xl', body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="unpublished" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
           </template>
         </USlideover>
 
@@ -632,7 +770,7 @@ useEventListener(window, 'beforeunload', (event) => {
           :ui="{ body: 'h-full' }"
         >
           <template #body>
-            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="dirty" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
+            <EditorPagePreview :url="siteUrl" :draft="previewDraft" :selected-block-id="selectedBlockId" :dirty="unpublished" :reload-key="previewReload" :trashed="trashed" @pick="pickBlock" />
           </template>
         </UModal>
 
@@ -650,8 +788,9 @@ useEventListener(window, 'beforeunload', (event) => {
           :project="project"
           :page-id="id"
           :current-version="baseVersion"
-          :locked="dirty"
-          @restored="load"
+          :viewing-version="viewingVersion"
+          :has-draft="hasDraft"
+          @open="openRevision"
         />
       </template>
     </template>

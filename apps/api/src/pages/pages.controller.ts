@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Put
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Principal } from '../auth/auth.types.js';
 import { CurrentPrincipal } from '../auth/current-principal.decorator.js';
-import { CreatePageDto, UpdatePageDto } from './pages.dto.js';
+import { CreatePageDto, PublishPageDto, UpdatePageDto } from './pages.dto.js';
 import { PagesService } from './pages.service.js';
 
 @ApiTags('pages')
@@ -68,13 +68,30 @@ export class PagesController {
     return this.pages.revisions(principal, project, id);
   }
 
-  @Post(':id/revisions/:version/restore')
-  restore(
+  @Get(':id/revisions/:version')
+  revision(
     @CurrentPrincipal() principal: Principal,
     @Param('project') project: string,
     @Param('id') id: string,
     @Param('version', ParseIntPipe) version: number,
   ) {
-    return this.pages.restoreRevision(principal, project, id, version);
+    return this.pages.revision(principal, project, id, version);
+  }
+
+  /** Публикует сохранённый черновик новой версией. */
+  @Post(':id/publish')
+  publish(
+    @CurrentPrincipal() principal: Principal,
+    @Param('project') project: string,
+    @Param('id') id: string,
+    @Body() dto: PublishPageDto,
+  ) {
+    return this.pages.publish(principal, project, id, dto.version);
+  }
+
+  /** Отбрасывает черновик, опубликованная версия не меняется. */
+  @Delete(':id/draft')
+  discardDraft(@CurrentPrincipal() principal: Principal, @Param('project') project: string, @Param('id') id: string) {
+    return this.pages.discardDraft(principal, project, id);
   }
 }

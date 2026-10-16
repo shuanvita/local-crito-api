@@ -1,4 +1,11 @@
-import type { ContentBlock, ContentPageMeta, CreatePageRequest, PageContent, UpdatePageRequest } from '@crito/contract';
+import type {
+  ContentBlock,
+  ContentPageMeta,
+  CreatePageRequest,
+  PageContent,
+  PublishPageRequest,
+  UpdatePageRequest,
+} from '@crito/contract';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -77,7 +84,13 @@ export class CreatePageDto extends PageContentDto implements CreatePageRequest {
 }
 
 export class UpdatePageDto extends PageContentDto implements UpdatePageRequest {
-  /** Версия, которую редактор открыл. Если страницу успели сохранить, придёт 409. */
+  /** Опубликованная версия, на которой основаны правки. Если страницу успели опубликовать, придёт 409. */
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
+export class PublishPageDto implements PublishPageRequest {
   @IsInt()
   @Min(1)
   version: number;

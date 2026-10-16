@@ -24,8 +24,11 @@ export type {
   CreatePageRequest,
   PageContent,
   PageDetail,
+  PageDraft,
   PageListItem,
+  PageRevisionDetail,
   PageRevisionItem,
+  PublishPageRequest,
   TrashedPageItem,
   UpdatePageRequest,
 } from './pages.js'

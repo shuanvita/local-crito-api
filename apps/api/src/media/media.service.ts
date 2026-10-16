@@ -96,10 +96,13 @@ export class MediaService {
     if (!media) throw new NotFoundException('Файл не найден');
 
     // Страницы из корзины тоже считаются: после восстановления они снова покажутся на сайте.
+    // Черновик тоже: после публикации файл окажется на сайте, а удалить его уже не дадут.
     const usedOn = await this.prisma.$queryRaw<{ slug: string; deletedAt: Date | null }[]>(Prisma.sql`
       SELECT "slug", "deletedAt" FROM "Page"
       WHERE "projectId" = ${project.id}
-        AND (position(${media.key} in "blocks"::text) > 0 OR position(${media.key} in coalesce("meta"::text, '')) > 0)
+        AND (position(${media.key} in "blocks"::text) > 0
+          OR position(${media.key} in coalesce("meta"::text, '')) > 0
+          OR position(${media.key} in coalesce("draft"::text, '')) > 0)
       ORDER BY "slug"
     `);
     if (usedOn.length > 0) {
