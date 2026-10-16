@@ -110,30 +110,14 @@ describe('ManifestService.set: поля каталога блоков', () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
-  it('сохраняет headerConfigs', async () => {
+  it('сохраняет headerSchema и отклоняет невалидную', async () => {
     const { service, update } = createSetService();
-    await service.set('rucode', {
-      ...manifest,
-      headerConfigs: [{ key: 'home', title: 'Главная' }, { key: 'champ', title: 'Чемпионат', description: 'С баннером' }],
-    });
+    await service.set('rucode', { ...manifest, headerSchema: { type: 'object', properties: { links: { type: 'array' } } } });
     expect(update).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    ['не массив', 'home'],
-    ['элемент не объект', ['home']],
-    ['пустой key', [{ key: '', title: 'A' }]],
-    ['key с пробелами по краям', [{ key: ' home', title: 'A' }]],
-    ['key не строка', [{ key: 1, title: 'A' }]],
-    ['пустой title', [{ key: 'home', title: ' ' }]],
-    ['description не строка', [{ key: 'home', title: 'A', description: 1 }]],
-    ['повтор key', [{ key: 'home', title: 'A' }, { key: 'home', title: 'B' }]],
-  ])('отклоняет headerConfigs: %s', async (_name, headerConfigs) => {
-    const { service, update } = createSetService();
     await expect(
-      service.set('rucode', { ...manifest, headerConfigs } as unknown as BlockManifest),
-    ).rejects.toThrow('headerConfigs');
-    expect(update).not.toHaveBeenCalled();
+      service.set('rucode', { ...manifest, headerSchema: { type: 'not-a-type' } } as unknown as BlockManifest),
+    ).rejects.toThrow('headerSchema');
+    expect(update).toHaveBeenCalledOnce();
   });
 
   it.each([

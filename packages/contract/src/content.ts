@@ -38,9 +38,7 @@ export interface ContentPage {
   version: number
   blocks: ContentBlock[]
   meta?: ContentPageMeta
-  /** Ключ конфигурации шапки и футера на сайте. */
-  headerConfig?: string
-  /** Шапка страницы; без неё сайт берёт готовый вариант по `headerConfig`. */
+  /** Шапка страницы (ссылки, логотипы); без неё сайт рисует шапку по умолчанию без своих ссылок. */
   header?: PageHeader
   noFooterSpacing?: boolean
 }

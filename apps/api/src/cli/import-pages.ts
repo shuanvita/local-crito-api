@@ -66,7 +66,6 @@ export async function importPages(
         slug,
         blocks: page.blocks,
         meta: page.meta,
-        headerConfig: page.headerConfig,
         header: page.header,
         noFooterSpacing: page.noFooterSpacing ?? false,
       };

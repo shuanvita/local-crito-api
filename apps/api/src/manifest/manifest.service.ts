@@ -3,7 +3,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../common/prisma.service.js';
-import type { BlockManifest, ContentBlock, JsonSchema, PageHeader, SiteSettings } from '@crito/contract';
+import type { BlockManifest, ContentBlock, JsonSchema, PageHeader } from '@crito/contract';
 import { sanitizeBlockData } from './rich-text.js';
 
 /** Блок страницы в запросе на сохранение: формат контракта. */
@@ -36,17 +36,15 @@ export class ManifestService {
     if (manifest.project !== slug) {
       throw new BadRequestException(`Манифест относится к проекту "${manifest.project}", а не "${slug}"`);
     }
-    this.assertHeaderConfigs(manifest.headerConfigs);
     const types = new Set<string>();
     const ajv = this.createAjv();
-    for (const field of ['headerSchema', 'settingsSchema'] as const) {
-      const schema = manifest[field];
-      if (schema === undefined) continue;
+    if (manifest.headerSchema !== undefined) {
       try {
+        const schema = manifest.headerSchema;
         if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) throw new Error('должна быть объектом');
         ajv.compile(schema);
       } catch (error) {
-        throw new BadRequestException(`Невалидная JSON Schema в ${field}: ${(error as Error).message}`);
+        throw new BadRequestException(`Невалидная JSON Schema в headerSchema: ${(error as Error).message}`);
       }
     }
     for (const block of manifest.blocks) {
@@ -152,12 +150,6 @@ export class ManifestService {
     return this.prepareAgainst(entry.manifest.headerSchema, header, 'header', 'Манифест проекта не описывает шапку (headerSchema)') as PageHeader;
   }
 
-  /** То же для общих настроек сайта: по `settingsSchema`. */
-  async prepareSettings(slug: string, settings: SiteSettings): Promise<SiteSettings> {
-    const entry = await this.loadEntry(slug);
-    return this.prepareAgainst(entry.manifest.settingsSchema, settings, 'settings', 'Манифест проекта не описывает настройки сайта (settingsSchema)') as SiteSettings;
-  }
-
   private prepareAgainst(schema: JsonSchema | undefined, data: unknown, label: string, missing: string): unknown {
     if (!schema) throw new ConflictException(missing);
     const validate = this.createAjv().compile(schema);
@@ -222,33 +214,6 @@ export class ManifestService {
       (!Array.isArray(block.pages) || block.pages.some((mask) => typeof mask !== 'string'))
     ) {
       fail('pages должен быть массивом строк');
-    }
-  }
-
-  /**
-   * Список вариантов шапки приходит из CI без DTO. Ключ попадает в `headerConfig` страниц и на сайт,
-   * поэтому он непустой, без пробелов по краям и уникальный.
-   */
-  private assertHeaderConfigs(value: unknown) {
-    if (value === undefined) return;
-    const fail = (message: string): never => {
-      throw new BadRequestException(`headerConfigs: ${message}`);
-    };
-    if (!Array.isArray(value)) fail('должен быть массивом');
-    const keys = new Set<string>();
-    for (const [index, item] of (value as unknown[]).entries()) {
-      const entry = item as Record<string, unknown> | null;
-      if (!entry || typeof entry !== 'object') fail(`[${index}] должен быть объектом`);
-      const { key, title, description } = entry as Record<string, unknown>;
-      if (typeof key !== 'string' || key === '' || key !== key.trim()) {
-        fail(`[${index}].key должен быть непустой строкой без пробелов по краям`);
-      }
-      if (typeof title !== 'string' || title.trim() === '') fail(`[${index}].title должен быть непустой строкой`);
-      if (description !== undefined && typeof description !== 'string') {
-        fail(`[${index}].description должен быть строкой`);
-      }
-      if (keys.has(key as string)) fail(`повторяется key "${key as string}"`);
-      keys.add(key as string);
     }
   }
 

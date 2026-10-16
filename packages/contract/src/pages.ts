@@ -16,7 +16,6 @@ export interface PageListItem {
 export interface PageDraft {
   blocks: ContentBlock[]
   meta: ContentPageMeta | null
-  headerConfig: string | null
   header: PageHeader | null
   noFooterSpacing: boolean
   updatedAt: string
@@ -25,11 +24,10 @@ export interface PageDraft {
 
 /**
  * Страница целиком: `GET /projects/:project/pages/:id`, а также ответ на создание, сохранение черновика и публикацию.
- * `blocks`, `meta`, `headerConfig`, `noFooterSpacing` и `version` это опубликованная версия; правки в `draft`.
+ * `blocks`, `meta`, `header`, `noFooterSpacing` и `version` это опубликованная версия; правки в `draft`.
  */
 export interface PageDetail extends PageListItem {
   blocks: ContentBlock[]
-  headerConfig: string | null
   header: PageHeader | null
   noFooterSpacing: boolean
   /** Дата перемещения в корзину; null у живой страницы. Удалённую страницу нельзя редактировать. */
@@ -48,7 +46,6 @@ export interface TrashedPageItem extends PageListItem {
 export interface PageContent {
   blocks: ContentBlock[]
   meta?: ContentPageMeta
-  headerConfig?: string
   /** Шапка страницы; проверяется и очищается по `headerSchema` манифеста. */
   header?: PageHeader
   noFooterSpacing?: boolean
@@ -88,7 +85,6 @@ export interface PageRevisionItem {
 export interface PageRevisionDetail extends PageRevisionItem {
   blocks: ContentBlock[]
   meta: ContentPageMeta | null
-  headerConfig: string | null
   header: PageHeader | null
   noFooterSpacing: boolean
 }

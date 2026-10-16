@@ -70,10 +70,6 @@ class PageContentDto implements PageContent {
   @Type(() => PageMetaDto)
   meta?: PageMetaDto;
 
-  @IsOptional()
-  @IsString()
-  headerConfig?: string;
-
   /** Шапка страницы: форма задана `headerSchema` манифеста и проверяется там, а не здесь. */
   @IsOptional()
   @IsObject()

@@ -59,7 +59,6 @@ function setup(stored: { draft?: unknown; draftUpdatedAt?: Date | null } = {}) {
     version: 1,
     blocks: storedBlocks,
     meta: null,
-    headerConfig: null,
     noFooterSpacing: false,
     deletedAt: null,
     draft: stored.draft ?? null,
@@ -205,7 +204,6 @@ describe('PagesService: черновик и публикация', () => {
     const draft = {
       blocks: [{ id: 'a', type: 'info', order: 10, enabled: true, data: { text: 'из черновика' } }, storedBlocks[1]],
       meta: null,
-      headerConfig: null,
       noFooterSpacing: false,
     };
     const { service, saved } = setup({ draft, draftUpdatedAt: new Date() });
@@ -223,7 +221,7 @@ describe('PagesService: черновик и публикация', () => {
 
   it('редактор отдельных страниц сравнивает блоки без схемы с черновиком, а не с опубликованным', async () => {
     const changedByOwner = { ...storedBlocks[1], data: { html: '<b>правка владельца</b>' } };
-    const draft = { blocks: [storedBlocks[0], changedByOwner], meta: null, headerConfig: null, noFooterSpacing: false };
+    const draft = { blocks: [storedBlocks[0], changedByOwner], meta: null, noFooterSpacing: false };
     const { service } = setup({ draft, draftUpdatedAt: new Date() });
     await expect(
       service.update(pageOnly, 'rucode', 'pg', dto([info({ text: 'ещё правка' }), changedByOwner])),

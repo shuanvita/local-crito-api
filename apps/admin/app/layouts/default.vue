@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
-import type { BlockManifest } from '@crito/contract'
 
 const open = ref(false)
 const slug = useCurrentProjectSlug()
@@ -17,15 +16,6 @@ const { data: me } = useMe()
 // Заявки содержат персональные данные: пункт нужен только при доступе ко всему проекту.
 const { data: projects } = useProjects()
 const fullAccess = computed(() => projects.value.find(item => item.slug === slug.value)?.fullAccess === true)
-
-// Раздел общих настроек нужен, только если сайт описал их в манифесте (тот же ключ, что в редакторе страницы).
-const api = useApi()
-const { data: manifest } = useAsyncData(
-  () => `manifest:${slug.value}`,
-  () => slug.value ? api<BlockManifest | null>(`/projects/${slug.value}/manifest`) : Promise.resolve(null),
-  { watch: [slug] }
-)
-const hasSiteSettings = computed(() => fullAccess.value && !!manifest.value?.settingsSchema)
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
@@ -69,14 +59,6 @@ const links = computed<NavigationMenuItem[][]>(() => [
               label: 'Заявки',
               icon: 'i-lucide-inbox',
               to: `/${slug.value}/requests`,
-              onSelect: close
-            }]
-          : []),
-        ...(hasSiteSettings.value
-          ? [{
-              label: 'Общее для сайта',
-              icon: 'i-lucide-panel-top',
-              to: `/${slug.value}/site`,
               onSelect: close
             }]
           : []),

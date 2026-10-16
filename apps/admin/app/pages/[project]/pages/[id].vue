@@ -6,9 +6,8 @@ import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageD
 interface Draft {
   blocks: ContentBlock[]
   meta: ContentPageMeta
-  headerConfig: string
-  /** Своя шапка страницы по `headerSchema` манифеста; null: сайт берёт готовый вариант по `headerConfig`. */
-  header: PageHeader | null
+  /** Шапка страницы по `headerSchema` манифеста: ссылки и логотипы. Пустая: сайт рисует шапку по умолчанию. */
+  header: PageHeader
   noFooterSpacing: boolean
 }
 
@@ -58,15 +57,10 @@ const origin = computed(() => siteOrigin(current.value))
 const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value.slug) : null)
 
 // --- настройки страницы ---
-const headerConfigs = computed(() => manifest.value?.headerConfigs ?? [])
 // Шапку страницы можно править, только если сайт описал её форму в манифесте.
 const headerSchema = computed(() => manifest.value?.headerSchema)
-
-function toggleOwnHeader(on: boolean) {
-  if (!draft.value || !headerSchema.value) return
-  draft.value.header = on ? createDefault(headerSchema.value) as PageHeader : null
-}
-const headerConfigOptions = computed(() => headerConfigItems(headerConfigs.value, draft.value?.headerConfig ?? ''))
+// Бейдж у пункта: на странице что-то задано (ссылки или логотипы).
+const headerFilled = computed(() => !!draft.value && !!toPayload(draft.value).header)
 const descriptionLevelValue = computed(() => descriptionLevel(draft.value?.meta.description))
 const descriptionHint = computed(() => ({
   empty: `Рекомендуем ${SEO_DESCRIPTION_MIN}–${SEO_DESCRIPTION_MAX} символов: коротко о том, что на странице. Пока пусто.`,
@@ -119,11 +113,12 @@ function cleanMeta(meta: ContentPageMeta): ContentPageMeta | undefined {
 
 /** Тело запроса сохранения. Используется и для сравнения с исходным состоянием. */
 function toPayload(value: Draft) {
+  const header = pruneEmpty(value.header)
   return {
     blocks: pruneEmpty(renumberBlocks(value.blocks)),
     meta: cleanMeta(value.meta),
-    headerConfig: value.headerConfig.trim() || undefined,
-    header: value.header ? pruneEmpty(value.header) : undefined,
+    // Пустую шапку не отправляем: у страницы её просто нет.
+    header: Object.keys(header).length ? header : undefined,
     noFooterSpacing: value.noFooterSpacing
   }
 }
@@ -132,7 +127,6 @@ function toPayload(value: Draft) {
 interface PageSource {
   blocks: ContentBlock[]
   meta?: ContentPageMeta | null
-  headerConfig: string | null
   header?: PageHeader | null
   noFooterSpacing: boolean
 }
@@ -141,8 +135,7 @@ function toDraft(source: PageSource): Draft {
   return {
     blocks: [...source.blocks].sort((a, b) => a.order - b.order).map(block => structuredClone(block)),
     meta: { ...source.meta },
-    headerConfig: source.headerConfig ?? '',
-    header: source.header ? structuredClone(source.header) : null,
+    header: source.header ? structuredClone(source.header) : {},
     noFooterSpacing: source.noFooterSpacing
   }
 }
@@ -531,7 +524,7 @@ useEventListener(window, 'beforeunload', (event) => {
             >
               <UIcon name="i-lucide-panel-top" :class="selected === 'header' ? 'text-primary' : 'text-muted'" />
               Шапка страницы
-              <UBadge v-if="draft.header" label="своя" color="primary" variant="subtle" size="sm" />
+              <UBadge v-if="headerFilled" label="задана" color="primary" variant="subtle" size="sm" />
               <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
             </button>
 
@@ -643,22 +636,6 @@ useEventListener(window, 'beforeunload', (event) => {
                 <UFormField label="Адрес страницы" description="Адрес задаётся при создании страницы и потом не меняется.">
                   <UInput :model-value="page?.slug" disabled icon="i-lucide-lock" class="w-full font-mono" />
                 </UFormField>
-                <UFormField
-                  label="Оформление шапки и футера"
-                  :description="headerConfigs.length
-                    ? 'Как выглядят шапка и футер на этой странице. Если не уверены, оставьте как есть.'
-                    : 'Название набора шапки и футера на сайте, например home. Если не уверены, оставьте как есть.'"
-                >
-                  <!-- список приходит из манифеста сайта; у старых манифестов его нет, тогда ключ вводится текстом -->
-                  <USelect
-                    v-if="headerConfigs.length"
-                    :model-value="toHeaderConfigValue(draft.headerConfig)"
-                    :items="headerConfigOptions"
-                    class="w-full"
-                    @update:model-value="draft.headerConfig = fromHeaderConfigValue($event as string)"
-                  />
-                  <UInput v-else v-model="draft.headerConfig" placeholder="Как на сайте по умолчанию" class="w-full" />
-                </UFormField>
                 <div class="space-y-1">
                   <USwitch v-model="draft.noFooterSpacing" label="Прижать последний блок к футеру" />
                   <p class="text-xs text-muted">
@@ -720,27 +697,15 @@ useEventListener(window, 'beforeunload', (event) => {
 
             </template>
 
-            <!-- шапка страницы: логотипы и ссылки по схеме сайта; пункты меню «Мероприятия» общие и правятся в «Общем для сайта» -->
+            <!-- шапка страницы: ссылки и логотипы по схеме сайта; меню «Мероприятия» и язык одинаковы везде и живут в коде сайта -->
             <template v-else-if="selected === 'header' && headerSchema">
               <h2 class="text-lg font-semibold text-highlighted">
                 Шапка страницы
               </h2>
-              <UCard :ui="{ body: 'space-y-4' }">
-                <div class="space-y-1">
-                  <USwitch
-                    :model-value="!!draft.header"
-                    label="Своя шапка на этой странице"
-                    :disabled="trashed"
-                    @update:model-value="toggleOwnHeader"
-                  />
-                  <p class="text-xs text-muted">
-                    {{ draft.header
-                      ? 'Логотипы и ссылки ниже заменяют готовую шапку сайта на этой странице.'
-                      : 'Сейчас используется готовая шапка сайта по настройке «Оформление шапки и футера». Включите, чтобы задать свои логотипы и ссылки.' }}
-                  </p>
-                </div>
-              </UCard>
-              <UCard v-if="draft.header">
+              <p class="text-sm text-muted">
+                По умолчанию шапка как на главной. Здесь задаются якорные ссылки этой страницы и, если нужно, другой логотип.
+              </p>
+              <UCard>
                 <EditorSchemaForm
                   v-model="draft.header"
                   :schema="headerSchema"
