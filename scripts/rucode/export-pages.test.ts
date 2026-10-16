@@ -17,9 +17,7 @@ import ru from '~/app/i18n/locales/ru.json'
 import { getBlockDefinition, registerBlocks, resetBlockRegistry, resolveBlockType } from '~/shared/api'
 import type { ContentBlock, ContentPage, ContentPageMeta } from '~/shared/api'
 
-import { footerConfigs } from '~/widgets/footer'
-import { defaultFooterContacts, defaultFooterRegulation } from '~/widgets/footer/model/TheFooter.config'
-import type { FooterConfigKey, FooterData } from '~/widgets/footer'
+import type { FooterData } from '~/widgets/footer'
 
 import { aiChampData } from '~/pages/ai_champ/model/AiChamp.data'
 import { aiTestingData } from '~/pages/aitesting/model/AiTesting.data'
@@ -202,48 +200,105 @@ const pages: PageSource[] = [
   },
 ]
 
-/** Ключ `footerConfig` из `definePageMeta` статических страниц сайта (`src/app/routes/*.vue`). */
-const footerKeys: Record<string, FooterConfigKey> = {
-  '/': 'home',
-  '/ai_champ': 'ai_champ',
-  '/aitesting': 'aitesting',
-  '/award2025': 'award2025',
-  '/award2026': 'award2026',
-  '/capital-2024': 'capital2024',
-  '/champ': 'champ',
-  '/consortium': 'consortium',
-  '/final-2024': 'final2024',
-  '/mts': 'mts',
-  '/mws': 'mws',
-  '/practikum': 'practikum',
+/**
+ * Футеры, которые были зашиты в сайте (`TheFooter.config.ts`), в виде `footer` страницы по её адресу на сайте.
+ * В сайте их больше нет: до импорта страница рисует пустой футер (логотип и соцсети). Заданный футер описывает
+ * страницу целиком. Переводы (`titleKey`) в форму CMS не входят: у `champ` с английской версией они в `definePageMeta`.
+ */
+const site = { label: 'rucode.net', href: 'https://rucode.net/' }
+const info = { email: 'info@rucode.net', site }
+const telegram = { label: 'Telegram', href: 'https://t.me/rucodefestival' }
+const awardLinks = links(
+  ['#premium', 'О премии'],
+  ['#nominations', 'Направления и номинации'],
+  ['#stages', 'Этапы'],
+  ['#committee', 'Орг. комитет'],
+  ['#partners', 'Партнёры'],
+)
+const awardRegulation = {
+  href: 'https://rucode.net/wp-content/uploads/2026/08/polozhenie-rucode.premii.pdf',
+  title: 'Положение о проведении Премии',
+}
+const awardContacts = {
+  email: 'award@rucode.net',
+  site,
+  phone: { label: '+7 (495) 128-34-32', href: 'tel:+74951283432' },
+  workHours: 'Режим работы: 10:00-18:00',
+}
+const jobMts = { label: 'job.mts.ru', href: 'https://job.mts.ru/' }
+
+const footers: Record<string, FooterData> = {
+  '/': {
+    links: links(
+      ['#tracks', 'Треки фестиваля'],
+      ['#calendar', 'Календарь'],
+      ['#consortium', 'Консорциум'],
+      ['#videos', 'Видео'],
+      ['https://edu.mipt.ru/member/?rucode=1', 'Хочу участвовать'],
+    ),
+    contacts: info,
+  },
+  '/ai_champ': {
+    links: links(['#leagues', 'Лиги RuCode'], ['#stages', 'Этапы'], ['#tasks', 'Задачи'], ['#preparation', 'Подготовка']),
+    contacts: info,
+  },
+  '/aitesting': {
+    links: links(['#format', 'Формат проведения'], ['#demo', 'Демо-тест'], ['#calendar', 'Календарь'], ['#partners', 'Партнёры']),
+    contacts: info,
+  },
+  '/award2025': {
+    links: [...awardLinks.slice(0, 4), ...links(['#ceremony', 'Церемония']), awardLinks[4]!],
+    regulation: awardRegulation,
+    contacts: awardContacts,
+  },
+  '/award2026': { links: awardLinks, regulation: awardRegulation, contacts: awardContacts },
+  '/capital-2024': {
+    links: links(['#about', 'О Столице'], ['#faces', 'Лица RuCode'], ['#program', 'Программа'], ['#gallery', 'Галерея'], ['#partners', 'Партнёры']),
+    contacts: { ...info, link: telegram },
+  },
+  '/champ': {
+    links: links(['#about', 'О чемпионате'], ['#how', 'Этапы'], ['#why', 'Зачем участвовать'], ['#achievements', 'Достижения'], ['#gallery', 'Фотогалерея']),
+    regulation: { href: '/files/reglament_mezhdunarodnogo_chempionata_rukod.pdf', title: 'Регламент чемпионата' },
+    contacts: {
+      site,
+      extraGroups: [
+        { title: 'По вопросам организации и технической поддержки', email: 'support@rucode.net' },
+        { title: 'По вопросам партнёрства и для СМИ', email: 'partnership@rucode.net' },
+      ],
+      phoneTitle: 'Связь с организаторами',
+      phone: { label: '+7 495 128-34-32', href: 'tel:+74951283432' },
+      workHours: 'с 10:00 до 18:00 МСК',
+    },
+  },
+  '/consortium': {
+    links: links(
+      ['#main', 'Главное'],
+      ['#directions', 'Направления'],
+      ['#geography', 'География'],
+      ['#benefits', 'Преимущества'],
+      ['#gallery', 'Галерея'],
+      ['#forwho', 'Кого мы ждем?'],
+      ['#stages', 'Этапы'],
+    ),
+    contacts: info,
+  },
+  '/final-2024': {
+    links: links(['#about', 'О финале'], ['#comments', 'Зачем участвовать'], ['#program', 'Программа'], ['#faq', 'Вопросы и ответы'], ['#partners', 'Партнёры']),
+    contacts: { ...info, link: telegram },
+  },
+  '/mts': { links: [], contacts: { ...info, link: jobMts } },
+  '/mws': { links: [], contacts: { ...info, link: jobMts } },
+  '/practikum': {
+    links: links(['#about', 'О практикуме'], ['#stages', 'Этапы'], ['#content', 'Материалы'], ['#partners', 'Партнёры']),
+    contacts: {
+      ...info,
+      link: { label: 'Telegram чат', href: 'https://t.me/rucodefestival' },
+      phone: { label: '+7 (498) 713-91-89', href: 'tel:+74987139189' },
+    },
+  },
 }
 
-/**
- * Футер, который был зашит в сайте (`footerConfigs`), в виде `footer` страницы. Заданный футер описывает страницу
- * целиком, поэтому значения по умолчанию виджета (регламент, контакты) выписываются явно. Переводы (`titleKey`) в форму
- * CMS не входят: у страниц с английской версией остаются в коде.
- */
-function footerFor(route: string): FooterData | undefined {
-  const key = footerKeys[route]
-  const config = key ? footerConfigs[key] : undefined
-  if (!config) return undefined
-  const regulation = config.regulation === undefined ? defaultFooterRegulation : config.regulation
-  const contacts = { ...defaultFooterContacts, ...config.contacts }
-  return {
-    links: config.links.map(({ href, title }) => ({ href, title })),
-    ...(regulation ? { regulation: { href: regulation.href, title: regulation.title } } : {}),
-    contacts: {
-      ...(contacts.email ? { email: contacts.email } : {}),
-      ...(contacts.link ? { link: contacts.link } : {}),
-      ...(contacts.phone ? { phone: contacts.phone } : {}),
-      ...(contacts.phone && contacts.phoneTitle ? { phoneTitle: contacts.phoneTitle } : {}),
-      ...(contacts.workHours ? { workHours: contacts.workHours } : {}),
-      ...(contacts.extraGroups?.length
-        ? { extraGroups: contacts.extraGroups.map(({ title, email }) => ({ ...(title ? { title } : {}), email })) }
-        : {}),
-    },
-  }
-}
+const footerFor = (route: string): FooterData | undefined => footers[route]
 
 type Json = Record<string, unknown>
 const isPlain = (value: unknown): value is Json =>
