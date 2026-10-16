@@ -35,6 +35,7 @@ import { practicumPageData } from '~/pages/practikum/model/PracticumPage.data'
 /** Шапка страницы: форма `headerSchema` сайта (ссылки, свой логотип, логотип партнёра, логотипы поддержки). */
 interface PageHeader {
   links?: { href: string; title: string }[]
+  linksInFooter?: boolean
   logo?: { src: string }
   partnerLogo?: { src: string; alt?: string; to?: string }
   supportLogos?: { src: string; alt?: string }[]
@@ -356,15 +357,25 @@ function convert(source: PageSource, problems: Problem[]) {
     })
   }
 
+  // Ссылки шапки и футера не дублируем: где они совпадают, включаем флажок шапки «Те же ссылки в футере»
+  // и оставляем футеру только остальное.
+  let header = source.header
+  let footer = footerFor(source.route)
+  const sameLinks = (a: { href: string; title: string }[] = [], b: { href: string; title: string }[] = []) =>
+    a.length > 0 && a.length === b.length && a.every((link, i) => link.href === b[i]!.href && link.title === b[i]!.title)
+  if (header && footer && sameLinks(header.links, footer.links)) {
+    header = { ...header, linksInFooter: true }
+    footer = { ...footer, links: [] }
+  }
+
   // Шапка идёт в CMS как есть, поэтому проверяем её той же схемой, что уходит в манифест.
-  if (source.header) {
-    const result = headerSchema.safeParse(source.header)
+  if (header) {
+    const result = headerSchema.safeParse(header)
     if (!result.success) {
       problems.push({ page: slug, message: `шапка не проходит схему: ${JSON.stringify(result.error.issues).slice(0, 400)}` })
     }
   }
 
-  const footer = footerFor(source.route)
   if (footer) {
     const result = footerSchema.safeParse(footer)
     if (!result.success) {
@@ -376,7 +387,7 @@ function convert(source: PageSource, problems: Problem[]) {
     slug,
     blocks: blocks.toSorted((a, b) => a.order - b.order),
     ...(source.meta ? { meta: source.meta } : {}),
-    ...(source.header ? { header: source.header } : {}),
+    ...(header ? { header } : {}),
     ...(footer ? { footer } : {}),
     noFooterSpacing: source.noFooterSpacing ?? false,
   }
