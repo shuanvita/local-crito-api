@@ -422,7 +422,7 @@ describe('очистка данных блоков', () => {
           infoBlock({
             title: 'Заголовок',
             // noinspection HtmlRequiredAltAttribute,HtmlUnknownTarget,HtmlDeprecatedAttribute: пейлоад XSS, не разметка
-            body: '<p onclick="x()">ок</p><script>alert(1)</script><img src=x onerror=alert(2)><a href="javascript:alert(3)">ссылка</a>',
+            body: '<p onclick="x()">ок</p><script>alert(1)</script><img src=x onerror=alert(2) alt=""><a href="javascript:alert(3)">ссылка</a>',
           }),
         ],
       })
