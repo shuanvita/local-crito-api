@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import type { PreviewDraft } from '~/utils/site'
-import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, PageRevisionDetail, ProjectSummary, PublishPageRequest, UpdatePageRequest } from '@crito/contract'
+import type { BlockManifest, ContentBlock, ContentPageMeta, ManifestBlock, PageDetail, PageHeader, PageRevisionDetail, ProjectSummary, PublishPageRequest, UpdatePageRequest } from '@crito/contract'
 
 interface Draft {
   blocks: ContentBlock[]
   meta: ContentPageMeta
   headerConfig: string
+  /** Своя шапка страницы по `headerSchema` манифеста; null: сайт берёт готовый вариант по `headerConfig`. */
+  header: PageHeader | null
   noFooterSpacing: boolean
 }
+
+/** Панели справа, которые не относятся к блокам: выбранный блок задаётся его `id`. */
+const PAGE_PANELS = ['page', 'header']
 
 const route = useRoute()
 const api = useApi()
@@ -54,6 +59,13 @@ const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value
 
 // --- настройки страницы ---
 const headerConfigs = computed(() => manifest.value?.headerConfigs ?? [])
+// Шапку страницы можно править, только если сайт описал её форму в манифесте.
+const headerSchema = computed(() => manifest.value?.headerSchema)
+
+function toggleOwnHeader(on: boolean) {
+  if (!draft.value || !headerSchema.value) return
+  draft.value.header = on ? createDefault(headerSchema.value) as PageHeader : null
+}
 const headerConfigOptions = computed(() => headerConfigItems(headerConfigs.value, draft.value?.headerConfig ?? ''))
 const descriptionLevelValue = computed(() => descriptionLevel(draft.value?.meta.description))
 const descriptionHint = computed(() => ({
@@ -111,6 +123,7 @@ function toPayload(value: Draft) {
     blocks: pruneEmpty(renumberBlocks(value.blocks)),
     meta: cleanMeta(value.meta),
     headerConfig: value.headerConfig.trim() || undefined,
+    header: value.header ? pruneEmpty(value.header) : undefined,
     noFooterSpacing: value.noFooterSpacing
   }
 }
@@ -120,6 +133,7 @@ interface PageSource {
   blocks: ContentBlock[]
   meta?: ContentPageMeta | null
   headerConfig: string | null
+  header?: PageHeader | null
   noFooterSpacing: boolean
 }
 
@@ -128,6 +142,7 @@ function toDraft(source: PageSource): Draft {
     blocks: [...source.blocks].sort((a, b) => a.order - b.order).map(block => structuredClone(block)),
     meta: { ...source.meta },
     headerConfig: source.headerConfig ?? '',
+    header: source.header ? structuredClone(source.header) : null,
     noFooterSpacing: source.noFooterSpacing
   }
 }
@@ -147,7 +162,7 @@ function load(source: PageDetail) {
   snapshot.value = JSON.stringify(toPayload(draft.value))
   viewingVersion.value = null
   conflict.value = false
-  if (selected.value !== 'page' && !draft.value.blocks.some(block => block.id === selected.value)) {
+  if (!PAGE_PANELS.includes(selected.value) && !draft.value.blocks.some(block => block.id === selected.value)) {
     selected.value = 'page'
   }
 }
@@ -162,7 +177,7 @@ const dirty = computed(() => !!draft.value && JSON.stringify(toPayload(draft.val
 /** Содержимое в редакторе отличается от опубликованного: есть что публиковать. */
 const unpublished = computed(() => !!draft.value && JSON.stringify(toPayload(draft.value)) !== publishedPayload.value)
 
-const selectedBlockId = computed(() => selected.value === 'page' ? null : selected.value)
+const selectedBlockId = computed(() => PAGE_PANELS.includes(selected.value) ? null : selected.value)
 
 // То, что уходит на сайт для предпросмотра: тот же состав, что при сохранении, но без сохранения.
 const previewDraft = computed<PreviewDraft | null>(() => draft.value ? toPayload(draft.value) as PreviewDraft : null)
@@ -295,7 +310,7 @@ function openRevision(revision: PageRevisionDetail) {
   draft.value = toDraft(revision)
   viewingVersion.value = revision.version
   conflict.value = false
-  if (selected.value !== 'page' && !draft.value.blocks.some(block => block.id === selected.value)) {
+  if (!PAGE_PANELS.includes(selected.value) && !draft.value.blocks.some(block => block.id === selected.value)) {
     selected.value = 'page'
   }
   revisionsOpen.value = false
@@ -505,6 +520,21 @@ useEventListener(window, 'beforeunload', (event) => {
               <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
             </button>
 
+            <!-- шапка страницы: только если сайт описал её форму в манифесте -->
+            <button
+              v-if="headerSchema"
+              type="button"
+              class="flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors"
+              :class="selected === 'header' ? 'bg-primary/10 text-primary' : 'text-highlighted hover:bg-elevated'"
+              :aria-current="selected === 'header' ? 'true' : undefined"
+              @click="selected = 'header'"
+            >
+              <UIcon name="i-lucide-panel-top" :class="selected === 'header' ? 'text-primary' : 'text-muted'" />
+              Шапка страницы
+              <UBadge v-if="draft.header" label="своя" color="primary" variant="subtle" size="sm" />
+              <UIcon name="i-lucide-chevron-right" class="ml-auto size-4 text-muted" />
+            </button>
+
             <div class="flex items-center justify-between">
               <h2 class="text-sm font-medium text-highlighted">
                 Блоки ({{ draft.blocks.length }})
@@ -688,6 +718,36 @@ useEventListener(window, 'beforeunload', (event) => {
                 <EditorSeoPreview :meta="draft.meta" :site-url="siteUrl" :slug="page?.slug ?? ''" :origin="origin" />
               </UCard>
 
+            </template>
+
+            <!-- шапка страницы: логотипы и ссылки по схеме сайта; пункты меню «Мероприятия» общие и правятся в «Общем для сайта» -->
+            <template v-else-if="selected === 'header' && headerSchema">
+              <h2 class="text-lg font-semibold text-highlighted">
+                Шапка страницы
+              </h2>
+              <UCard :ui="{ body: 'space-y-4' }">
+                <div class="space-y-1">
+                  <USwitch
+                    :model-value="!!draft.header"
+                    label="Своя шапка на этой странице"
+                    :disabled="trashed"
+                    @update:model-value="toggleOwnHeader"
+                  />
+                  <p class="text-xs text-muted">
+                    {{ draft.header
+                      ? 'Логотипы и ссылки ниже заменяют готовую шапку сайта на этой странице.'
+                      : 'Сейчас используется готовая шапка сайта по настройке «Оформление шапки и футера». Включите, чтобы задать свои логотипы и ссылки.' }}
+                  </p>
+                </div>
+              </UCard>
+              <UCard v-if="draft.header">
+                <EditorSchemaForm
+                  v-model="draft.header"
+                  :schema="headerSchema"
+                  :root="headerSchema"
+                  :project="project"
+                />
+              </UCard>
             </template>
 
             <!-- блок -->

@@ -1,9 +1,10 @@
-import type { ContentPage, PublicRegion } from '@crito/contract';
+import type { ContentPage, PublicRegion, SiteSettings } from '@crito/contract';
 import { Controller, Get, Header, NotFoundException, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/public.decorator.js';
 import { PrismaService } from '../common/prisma.service.js';
 import { tryNormalizeSlug } from '../common/slug.js';
+import { parseSettings } from '../settings/settings.service.js';
 
 /** Регионы в порядке, заданном в админке: форма совпадает с `RegionOption` сайта. */
 export function listPublicRegions(prisma: PrismaService): Promise<PublicRegion[]> {
@@ -55,6 +56,16 @@ export class PublicController {
     return listPublicRegions(this.prisma);
   }
 
+  /** Общие настройки сайта (например, меню «Мероприятия»). Пока они не заданы, 404: сайт берёт запасной вариант. */
+  @Header('Cache-Control', 'public, no-cache')
+  @Get('settings')
+  async getSettings(@Param('project') project: string): Promise<SiteSettings> {
+    const found = await this.prisma.project.findUnique({ where: { slug: project }, select: { settings: true } });
+    const settings = parseSettings(found?.settings ?? null);
+    if (!settings) throw new NotFoundException('Настройки не заданы');
+    return settings;
+  }
+
   // no-cache: кэши могут хранить ответ, но каждый раз сверяют ETag, поэтому публикация видна сразу.
   @Header('Cache-Control', 'public, no-cache')
   @Get('pages/*slug')
@@ -71,6 +82,7 @@ export class PublicController {
         blocks: true,
         meta: true,
         headerConfig: true,
+        header: true,
         noFooterSpacing: true,
       },
     });
@@ -83,6 +95,7 @@ export class PublicController {
       blocks: page.blocks as unknown as ContentPage['blocks'],
       ...(page.meta ? { meta: page.meta as ContentPage['meta'] } : {}),
       ...(page.headerConfig ? { headerConfig: page.headerConfig } : {}),
+      ...(page.header ? { header: page.header as ContentPage['header'] } : {}),
       noFooterSpacing: page.noFooterSpacing,
     };
   }

@@ -87,4 +87,14 @@ export interface BlockManifest {
    * сохраняется, админка помечает такое значение как «нет в списке».
    */
   headerConfigs?: ManifestHeaderConfig[]
+  /**
+   * JSON Schema шапки страницы (`header`). По ней админка строит форму, а сервер проверяет и очищает данные
+   * (`x-field: link | image`). Без схемы шапку страницы сохранить нельзя.
+   */
+  headerSchema?: JsonSchema
+  /**
+   * JSON Schema общих настроек сайта (`GET/PUT /projects/:project/settings`): например, список мероприятий
+   * в меню. Без схемы настройки сохранить нельзя.
+   */
+  settingsSchema?: JsonSchema
 }

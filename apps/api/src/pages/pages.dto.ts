@@ -3,6 +3,7 @@ import type {
   ContentPageMeta,
   CreatePageRequest,
   PageContent,
+  PageHeader,
   PublishPageRequest,
   UpdatePageRequest,
 } from '@crito/contract';
@@ -72,6 +73,11 @@ class PageContentDto implements PageContent {
   @IsOptional()
   @IsString()
   headerConfig?: string;
+
+  /** Шапка страницы: форма задана `headerSchema` манифеста и проверяется там, а не здесь. */
+  @IsOptional()
+  @IsObject()
+  header?: PageHeader;
 
   @IsOptional()
   @IsBoolean()

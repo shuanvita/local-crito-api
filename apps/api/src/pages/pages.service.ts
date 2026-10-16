@@ -12,10 +12,10 @@ import type { PageDraft } from '@crito/contract';
 import { CreatePageDto, UpdatePageDto } from './pages.dto.js';
 import { RevalidateService } from './revalidate.service.js';
 
-type PageContent = Pick<CreatePageDto, 'blocks' | 'meta' | 'headerConfig' | 'noFooterSpacing'>;
+type PageContent = Pick<CreatePageDto, 'blocks' | 'meta' | 'headerConfig' | 'header' | 'noFooterSpacing'>;
 
 /** Содержимое страницы одним JSON: так лежит черновик и так сравнивается с опубликованным. */
-type StoredContent = Pick<PageDraft, 'blocks' | 'meta' | 'headerConfig' | 'noFooterSpacing'>;
+type StoredContent = Pick<PageDraft, 'blocks' | 'meta' | 'headerConfig' | 'header' | 'noFooterSpacing'>;
 
 type PageRow = Page & {
   project?: unknown;
@@ -83,7 +83,11 @@ export class PagesService {
     const project = await this.findProject(projectSlug);
     const slug = normalizeSlug(dto.slug);
     await this.manifest.validateBlocks(projectSlug, dto.blocks);
-    dto = { ...dto, blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks) };
+    dto = {
+      ...dto,
+      blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks),
+      header: await this.manifest.prepareHeader(projectSlug, dto.header),
+    };
 
     const exists = await this.prisma.page.findUnique({
       where: { projectId_slug: { projectId: project.id, slug } },
@@ -126,7 +130,11 @@ export class PagesService {
       const base = (existing.draft ? this.draftContent(existing) : this.publishedContent(existing)).blocks;
       await this.assertReadonlyBlocksUnchanged(projectSlug, base as unknown as PageBlockInput[], dto.blocks);
     }
-    dto = { ...dto, blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks) };
+    dto = {
+      ...dto,
+      blocks: await this.manifest.sanitizeBlocks(projectSlug, dto.blocks),
+      header: await this.manifest.prepareHeader(projectSlug, dto.header),
+    };
 
     const content = this.snapshot(dto);
     const same = isDeepStrictEqual(content, this.publishedContent(existing));
@@ -162,8 +170,15 @@ export class PagesService {
     const draft = this.draftContent(existing);
     await this.manifest.validateBlocks(projectSlug, draft.blocks);
     const blocks = await this.manifest.sanitizeBlocks(projectSlug, draft.blocks);
+    const header = await this.manifest.prepareHeader(projectSlug, draft.header);
     const content = {
-      ...this.contentData({ ...draft, meta: draft.meta ?? undefined, headerConfig: draft.headerConfig ?? undefined, blocks }),
+      ...this.contentData({
+        ...draft,
+        meta: draft.meta ?? undefined,
+        headerConfig: draft.headerConfig ?? undefined,
+        header,
+        blocks,
+      }),
     };
 
     await this.prisma.$transaction(async (tx) => {
@@ -274,6 +289,7 @@ export class PagesService {
       blocks: revision.blocks as unknown as StoredContent['blocks'],
       meta: (revision.meta ?? null) as StoredContent['meta'],
       headerConfig: revision.headerConfig,
+      header: (revision.header ?? null) as StoredContent['header'],
       noFooterSpacing: revision.noFooterSpacing,
     };
   }
@@ -319,6 +335,7 @@ export class PagesService {
         blocks: dto.blocks,
         meta: dto.meta ?? null,
         headerConfig: dto.headerConfig ?? null,
+        header: dto.header ?? null,
         noFooterSpacing: dto.noFooterSpacing ?? false,
       }),
     ) as StoredContent;
@@ -329,12 +346,15 @@ export class PagesService {
       blocks: page.blocks as unknown as StoredContent['blocks'],
       meta: (page.meta ?? null) as StoredContent['meta'],
       headerConfig: page.headerConfig,
+      header: (page.header ?? null) as StoredContent['header'],
       noFooterSpacing: page.noFooterSpacing,
     };
   }
 
+  /** Черновики, сохранённые до появления шапки, не содержат `header`: считаем его пустым. */
   private draftContent(page: Page): StoredContent {
-    return page.draft as unknown as StoredContent;
+    const draft = page.draft as unknown as StoredContent;
+    return { ...draft, header: draft.header ?? null };
   }
 
   /** Ответ API: опубликованное содержимое и черновик отдельным полем; служебные связи наружу не уходят. */
@@ -354,6 +374,8 @@ export class PagesService {
       blocks: dto.blocks as unknown as Prisma.InputJsonValue,
       meta: (dto.meta ?? undefined) as Prisma.InputJsonValue | undefined,
       headerConfig: dto.headerConfig ?? null,
+      // DbNull, а не undefined: при публикации убранная шапка должна стереть прежнюю, а не остаться.
+      header: (dto.header ?? Prisma.DbNull) as Prisma.InputJsonValue,
       noFooterSpacing: dto.noFooterSpacing ?? false,
     };
   }

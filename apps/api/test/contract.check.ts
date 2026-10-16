@@ -18,6 +18,7 @@ import type {
   PageListItem,
   PageRevisionDetail,
   PageRevisionItem,
+  ProjectSettingsResponse,
   ProjectSummary,
   RegionItem,
   RotateCiKeyResponse,
@@ -31,6 +32,7 @@ import type { MediaService } from '../src/media/media.service.js';
 import type { PagesService } from '../src/pages/pages.service.js';
 import type { ProjectsService } from '../src/projects/projects.service.js';
 import type { RequestsService } from '../src/requests/requests.service.js';
+import type { SettingsService } from '../src/settings/settings.service.js';
 
 /** Тип значения после `JSON.stringify` / `JSON.parse`: даты становятся строками. */
 type Jsonify<T> = T extends Date
@@ -42,7 +44,7 @@ type Jsonify<T> = T extends Date
       : T;
 
 type Wire<T> = Jsonify<Awaited<T>>;
-type WithoutJson<T> = Omit<T, 'blocks' | 'meta'>;
+type WithoutJson<T> = Omit<T, 'blocks' | 'meta' | 'header'>;
 type Expect<T extends true> = T;
 type Extends<A, B> = [A] extends [B] ? true : false;
 
@@ -67,6 +69,9 @@ export type ContractChecks = [
   Expect<Extends<WithoutJson<Wire<ReturnType<PagesService['listTrash']>>[number]>, WithoutJson<TrashedPageItem>>>,
   Expect<Extends<WithoutJson<Wire<ReturnType<PagesService['restoreFromTrash']>>>, WithoutJson<PageDetail>>>,
   Expect<Extends<Wire<ReturnType<PagesService['revisions']>>, PageRevisionItem[]>>,
+  // настройки сайта
+  Expect<Extends<Wire<ReturnType<SettingsService['get']>>, ProjectSettingsResponse>>,
+  Expect<Extends<Wire<ReturnType<SettingsService['update']>>, ProjectSettingsResponse>>,
   // справочники
   Expect<Extends<Wire<ReturnType<DictionariesService['listRegions']>>, RegionItem[]>>,
   Expect<Extends<Wire<ReturnType<DictionariesService['createRegion']>>, RegionItem>>,

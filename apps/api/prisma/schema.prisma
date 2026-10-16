@@ -28,6 +28,9 @@ model Project {
   /// JSONB переставляет ключи, а порядок полей в схеме блоков задаёт порядок полей формы.
   manifest         String?  @db.Text
   manifestHash     String?
+  /// Общие настройки сайта (например, пункты меню «Мероприятия»): JSON текстом по той же причине, что и манифест.
+  /// Форму задаёт `settingsSchema` манифеста; версий нет, сохранение применяется сразу.
+  settings         String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -65,8 +68,10 @@ model Page {
   blocks          Json     @default("[]")
   meta            Json?
   headerConfig    String?
+  /// Шапка страницы (логотипы, ссылки) по `headerSchema` манифеста; null: сайт берёт вариант по `headerConfig`.
+  header          Json?
   noFooterSpacing Boolean  @default(false)
-  /// Не опубликованное на сайт содержимое (blocks, meta, headerConfig, noFooterSpacing одним JSON); null: черновика нет.
+  /// Не опубликованное на сайт содержимое (blocks, meta, headerConfig, header, noFooterSpacing одним JSON); null: черновика нет.
   draft           Json?
   draftUpdatedAt  DateTime?
   draftById       String?
@@ -95,6 +100,7 @@ model PageRevision {
   blocks          Json
   meta            Json?
   headerConfig    String?
+  header          Json?
   noFooterSpacing Boolean  @default(false)
   authorId        String?
   createdAt       DateTime @default(now())

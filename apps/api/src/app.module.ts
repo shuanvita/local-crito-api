@@ -10,6 +10,7 @@ import { MediaModule } from './media/media.module.js';
 import { ManifestModule } from './manifest/manifest.module.js';
 import { PagesModule } from './pages/pages.module.js';
 import { RequestsModule } from './requests/requests.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { PublicController, PublicDictionariesController } from './public/public.controller.js';
@@ -28,6 +29,7 @@ import { PublicController, PublicDictionariesController } from './public/public.
     ProjectsModule,
     ManifestModule,
     PagesModule,
+    SettingsModule,
     DictionariesModule,
     MediaModule,
     RequestsModule,

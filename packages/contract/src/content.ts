@@ -26,6 +26,12 @@ export interface ContentPageMeta {
   ogImage?: string
 }
 
+/**
+ * Шапка страницы: логотипы, ссылки и т. п. Форму задаёт сайт в манифесте (`headerSchema`),
+ * CMS по ней проверяет и очищает данные, но сама их устройство не знает.
+ */
+export type PageHeader = Record<string, unknown>
+
 /** Страница в формате публичного API: `GET /public/:project/pages/:slug`. */
 export interface ContentPage {
   slug: string
@@ -34,5 +40,7 @@ export interface ContentPage {
   meta?: ContentPageMeta
   /** Ключ конфигурации шапки и футера на сайте. */
   headerConfig?: string
+  /** Шапка страницы; без неё сайт берёт готовый вариант по `headerConfig`. */
+  header?: PageHeader
   noFooterSpacing?: boolean
 }

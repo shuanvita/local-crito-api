@@ -102,6 +102,7 @@ export class MediaService {
       WHERE "projectId" = ${project.id}
         AND (position(${media.key} in "blocks"::text) > 0
           OR position(${media.key} in coalesce("meta"::text, '')) > 0
+          OR position(${media.key} in coalesce("header"::text, '')) > 0
           OR position(${media.key} in coalesce("draft"::text, '')) > 0)
       ORDER BY "slug"
     `);
@@ -110,6 +111,10 @@ export class MediaService {
         message: 'Файл используется на страницах',
         pages: usedOn.map((page) => (page.deletedAt ? `${page.slug} (в корзине)` : page.slug)),
       });
+    }
+    // Общие настройки сайта (например, значки в меню) тоже могут ссылаться на файл.
+    if (project.settings?.includes(media.key)) {
+      throw new ConflictException({ message: 'Файл используется в настройках сайта', pages: [] });
     }
 
     await this.prisma.media.delete({ where: { id } });
@@ -124,7 +129,7 @@ export class MediaService {
   private async findProject(slug: string) {
     const project = await this.prisma.project.findUnique({
       where: { slug },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, settings: true },
     });
     if (!project) throw new NotFoundException('Проект не найден');
     return project;

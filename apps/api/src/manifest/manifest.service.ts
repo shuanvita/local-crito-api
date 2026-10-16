@@ -3,7 +3,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv/dist/2020.js';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../common/prisma.service.js';
-import type { BlockManifest, ContentBlock, JsonSchema } from '@crito/contract';
+import type { BlockManifest, ContentBlock, JsonSchema, PageHeader, SiteSettings } from '@crito/contract';
 import { sanitizeBlockData } from './rich-text.js';
 
 /** Блок страницы в запросе на сохранение: формат контракта. */
@@ -39,6 +39,16 @@ export class ManifestService {
     this.assertHeaderConfigs(manifest.headerConfigs);
     const types = new Set<string>();
     const ajv = this.createAjv();
+    for (const field of ['headerSchema', 'settingsSchema'] as const) {
+      const schema = manifest[field];
+      if (schema === undefined) continue;
+      try {
+        if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) throw new Error('должна быть объектом');
+        ajv.compile(schema);
+      } catch (error) {
+        throw new BadRequestException(`Невалидная JSON Schema в ${field}: ${(error as Error).message}`);
+      }
+    }
     for (const block of manifest.blocks) {
       if (types.has(block.type)) throw new BadRequestException(`Дублируется type блока: ${block.type}`);
       types.add(block.type);
@@ -130,6 +140,45 @@ export class ManifestService {
       throw new BadRequestException({ message: 'Недопустимые адреса в полях', errors: errors.slice(0, MAX_REPORTED_ERRORS) });
     }
     return result;
+  }
+
+  /**
+   * Проверяет и очищает шапку страницы по `headerSchema` манифеста. Без схемы шапку принять нельзя:
+   * сервер не знает, какие её поля содержат адреса, и не сможет их проверить.
+   */
+  async prepareHeader(slug: string, header: PageHeader | null | undefined): Promise<PageHeader | undefined> {
+    if (header === undefined || header === null) return undefined;
+    const entry = await this.loadEntry(slug);
+    return this.prepareAgainst(entry.manifest.headerSchema, header, 'header', 'Манифест проекта не описывает шапку (headerSchema)') as PageHeader;
+  }
+
+  /** То же для общих настроек сайта: по `settingsSchema`. */
+  async prepareSettings(slug: string, settings: SiteSettings): Promise<SiteSettings> {
+    const entry = await this.loadEntry(slug);
+    return this.prepareAgainst(entry.manifest.settingsSchema, settings, 'settings', 'Манифест проекта не описывает настройки сайта (settingsSchema)') as SiteSettings;
+  }
+
+  private prepareAgainst(schema: JsonSchema | undefined, data: unknown, label: string, missing: string): unknown {
+    if (!schema) throw new ConflictException(missing);
+    const validate = this.createAjv().compile(schema);
+    if (!validate(data)) {
+      throw new BadRequestException({
+        message: `Поле ${label} не прошло проверку по схеме`,
+        errors: (validate.errors ?? [])
+          .map((error) => `${label}${error.instancePath} ${error.message ?? 'невалидно'}`)
+          .slice(0, MAX_REPORTED_ERRORS),
+      });
+    }
+    const sanitized = sanitizeBlockData(data, schema);
+    if (sanitized.errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Недопустимые адреса в полях',
+        errors: sanitized.errors
+          .map((path) => `${label}${path.slice('data'.length)}: недопустимый адрес (разрешены http, https, mailto, tel и относительные)`)
+          .slice(0, MAX_REPORTED_ERRORS),
+      });
+    }
+    return sanitized.data;
   }
 
   /** Типы блоков без схемы: их содержимое админка не редактирует и сервер не может проверить. */

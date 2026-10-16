@@ -1,4 +1,4 @@
-import type { ContentBlock, ContentPageMeta } from './content.js'
+import type { ContentBlock, ContentPageMeta, PageHeader } from './content.js'
 
 /** Строка списка страниц: `GET /projects/:project/pages`. */
 export interface PageListItem {
@@ -17,6 +17,7 @@ export interface PageDraft {
   blocks: ContentBlock[]
   meta: ContentPageMeta | null
   headerConfig: string | null
+  header: PageHeader | null
   noFooterSpacing: boolean
   updatedAt: string
   author: { email: string, name: string | null } | null
@@ -29,6 +30,7 @@ export interface PageDraft {
 export interface PageDetail extends PageListItem {
   blocks: ContentBlock[]
   headerConfig: string | null
+  header: PageHeader | null
   noFooterSpacing: boolean
   /** Дата перемещения в корзину; null у живой страницы. Удалённую страницу нельзя редактировать. */
   deletedAt: string | null
@@ -47,6 +49,8 @@ export interface PageContent {
   blocks: ContentBlock[]
   meta?: ContentPageMeta
   headerConfig?: string
+  /** Шапка страницы; проверяется и очищается по `headerSchema` манифеста. */
+  header?: PageHeader
   noFooterSpacing?: boolean
 }
 
@@ -85,5 +89,6 @@ export interface PageRevisionDetail extends PageRevisionItem {
   blocks: ContentBlock[]
   meta: ContentPageMeta | null
   headerConfig: string | null
+  header: PageHeader | null
   noFooterSpacing: boolean
 }

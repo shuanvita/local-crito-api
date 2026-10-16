@@ -5,7 +5,8 @@
  * здесь быть не должно. Описывает формат JSON «по проводу»: даты приходят строками.
  */
 export type { Grant } from './auth.js'
-export type { ContentBlock, ContentPage, ContentPageMeta } from './content.js'
+export type { ContentBlock, ContentPage, ContentPageMeta, PageHeader } from './content.js'
+export type { ProjectSettingsResponse, SiteSettings, UpdateSettingsRequest } from './settings.js'
 export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest } from './dictionaries.js'
 export type { ApiErrorBody } from './errors.js'
 export type { ExportFile } from './import.js'
