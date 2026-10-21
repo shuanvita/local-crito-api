@@ -27,7 +27,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
       onSelect: close
     },
     {
-      label: '1Справочники',
+      label: 'Справочники',
       icon: 'i-lucide-library',
       // Раскрыт, пока открыт один из справочников; пункт сам никуда не ведёт.
       defaultOpen: route.path.startsWith('/dictionaries'),
