@@ -12,6 +12,20 @@
 
 Порты: сайт 3000 (занят), админка **3100**, API **3200**. Остальные админские методы API снаружи закрыты nginx.
 
+> **Боевой сервер (edu.mipt.ru).** Админка работает под `https://edu.mipt.ru/adm/cms-admin/`, а на диске это папка `/home/anvshurygin/cms-admin` (pm2 и nginx видят её как `/var/www/edu.mipt.ru/adm/cms-admin`, путь зашит в `ecosystem.config.cjs`). В неё GitHub Actions кладёт **готовую сборку**, а не репозиторий:
+>
+> ```
+> cms-admin/
+>   .output/                    сборка админки (Nitro), pm2-процесс cms-admin на 127.0.0.1:3100
+>   api/dist, api/prisma ...    собранный API и миграции, pm2-процесс crito-api на 127.0.0.1:3200
+>   api/node_modules, node_modules   production-зависимости API
+>   ecosystem.config.cjs        конфиг pm2 (копия deploy/ecosystem.config.cjs)
+>   deploy/                     deploy.sh, backup.sh
+>   site.env                    настройки (вне репозитория, деплой его не трогает)
+> ```
+>
+> Разделы 2 и 4 ниже описывают исходную схему с `/etc/crito` и `/var/www/crito`; для боевого сервера действуют раздел 8 и эта раскладка.
+
 > Админка не имеет собственного входа: прокси подставляет служебный токен. Единственная защита это `auth_basic` в nginx.
 > Проверка после настройки обязательна: `curl -i https://nuxt.rucode.net/admin/` без пароля должен дать **401**.
 
@@ -126,9 +140,9 @@ npm run export:rucode -- --front <путь к rucode> --out scripts/rucode/pages
 scp scripts/rucode/pages.json <сервер>:/tmp/pages.json
 
 # На сервере:
-cd /var/www/crito && set -a && . /etc/crito/api.env && set +a
-node apps/api/dist/cli/import-pages.main.js --file /tmp/pages.json --project rucode --dry-run
-node apps/api/dist/cli/import-pages.main.js --file /tmp/pages.json --project rucode
+cd ~/cms-admin && set -a && . ./site.env && set +a      # на боевом сервере; значения с пробелами и & в site.env берите в кавычки
+node api/dist/cli/import-pages.main.js --file /tmp/pages.json --project rucode --dry-run
+node api/dist/cli/import-pages.main.js --file /tmp/pages.json --project rucode
 rm /tmp/pages.json
 ```
 
@@ -136,12 +150,14 @@ rm /tmp/pages.json
 
 ## 8. Обновления и бэкапы
 
-- **GitHub Actions** (`.github/workflows/deploy.yml`): на push в `main` прогоняет типы, тесты и e2e, затем копирует файлы на сервер через `rsync --delete` и по ssh запускает `deploy/deploy.sh` (зависимости, сборка, миграции, pm2). Серверу доступ к GitHub не нужен. Секреты репозитория crito-api: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`; необязательный `SSH_KNOWN_HOSTS` (вывод `ssh-keyscan -p <порт> <хост>`) закрепляет отпечаток сервера. На сервере нужен `rsync`.
-- **Что rsync не трогает:** `node_modules`, `dist`, `.output`, `.nuxt`, `apps/api/src/generated`, `*.tsbuildinfo`, `.env*`. Всё остальное в `~/crito`, чего нет в репозитории, удаляется (`--delete`): не храните там свои файлы.
-- **Пробный запуск:** Actions → Deploy CMS → Run workflow с галочкой `dry_run`: в логе будет список файлов, которые изменятся, ничего не копируется и не перезапускается.
-- **Префикс админки:** переменная `CRITO_ADMIN_BASE` (по умолчанию `/admin/`, как в `nginx-cms.conf`). На боевом сервере nginx проксирует админку под `https://edu.mipt.ru/adm/cms-admin/`, поэтому workflow передаёт `CRITO_ADMIN_BASE=/adm/cms-admin/`. Префикс в сборке и в nginx должны совпадать, иначе ассеты `_nuxt` уйдут на сайт и вернут 404.
-- **Каталоги в домашнем каталоге** (код `~/crito`, секреты `~/crito-env`, загрузки `~/crito-data`): пути задаются переменными `CRITO_ROOT`, `CRITO_ENV_DIR`, `CRITO_NODE`, `CRITO_PM2`. Workflow передаёт их сам; при ручном запуске: `CRITO_ROOT=~/crito CRITO_ENV_DIR=~/crito-env bash ~/crito/deploy/deploy.sh`.
-- **Бэкап:** `crontab -e` → `17 3 * * * bash /var/www/crito/deploy/backup.sh >> /var/log/crito-backup.log 2>&1`. Копии на том же сервере, периодически забирайте `/var/backups/crito` на другую машину.
+- **GitHub Actions** (`.github/workflows/deploy.yml`): на push в `main` прогоняет типы, тесты и e2e, затем **на раннере** собирает API и админку (`npm run build` с `NUXT_APP_BASE_URL=/adm/cms-admin/`), ставит production-зависимости API (`npm ci --omit=dev -w @crito/api`), раскладывает результат `deploy/stage.sh`, копирует его в `~/cms-admin` через `rsync --delete` и по ssh запускает `deploy/deploy.sh` (миграции, pm2, проверка `/health`). На сервере сборка и `npm ci` не нужны, доступ к GitHub не нужен. Секреты репозитория crito-api: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`; необязательный `SSH_KNOWN_HOSTS` (вывод `ssh-keyscan -p <порт> <хост>`) закрепляет отпечаток сервера. На сервере нужен `rsync`.
+- **Что rsync не трогает:** `site.env`, `polyfill-crypto.mjs`, `api/uploads/` (хранилище файлов по умолчанию, если `STORAGE_LOCAL_DIR` не задан) и `.env*` в корне. Всё остальное в `~/cms-admin`, чего нет в собранной папке, удаляется (`--delete`): не храните там свои файлы. `STORAGE_LOCAL_DIR` лучше вынести за пределы `cms-admin` (например `/home/anvshurygin/crito-data/uploads`).
+- **`site.env`** (`chmod 600`, лежит в корне `cms-admin`, один файл на оба процесса): `DATABASE_URL`, `PUBLIC_BASE_URL`, `SESSION_SECRET`, `SECRETS_KEY`, `ADMIN_TOKEN`, `STORAGE_LOCAL_DIR` и др. переменные API, а также `NUXT_*`. `ecosystem.config.cjs` раздаёт `NUXT_*` только админке, остальное только API; `NUXT_ADMIN_TOKEN` берётся из `ADMIN_TOKEN`. `deploy.sh` и `backup.sh` берут из него `DATABASE_URL` (и `STORAGE_LOCAL_DIR`), не исполняя файл как shell.
+- **Пробный запуск:** Actions → Deploy CMS → Run workflow с галочкой `dry_run`: сборка выполняется, в логе будет список файлов, которые изменятся, ничего не копируется и не перезапускается.
+- **Префикс админки:** `/adm/cms-admin/` задаётся при сборке в workflow (`NUXT_APP_BASE_URL`) и при запуске в `ecosystem.config.cjs` (по умолчанию он же, переопределяется `CRITO_ADMIN_BASE`). Префикс в сборке и в nginx должны совпадать, иначе ассеты `_nuxt` уйдут на сайт и вернут 404.
+- **Переменные:** `CRITO_ROOT` (по умолчанию `/var/www/edu.mipt.ru/adm/cms-admin`; workflow передаёт `$HOME/cms-admin`), `CRITO_PM2` (по умолчанию `/usr/local/bin/pm2`). Ручной запуск: `CRITO_ROOT=~/cms-admin bash ~/cms-admin/deploy/deploy.sh`.
+- **Первый деплой в эту папку:** если раньше запускались процессы `crito-api` и `crito-admin` из другой папки, выполните `pm2 delete crito-api crito-admin`: `reload` не меняет рабочую папку, а админка теперь называется `cms-admin` и занимает тот же порт 3100.
+- **Бэкап:** `crontab -e` → `17 3 * * * bash ~/cms-admin/deploy/backup.sh >> ~/crito-backup.log 2>&1`. Копии на том же сервере (`/var/backups/crito` или `CRITO_BACKUP_DIR`), периодически забирайте их на другую машину.
 - **Перед обновлением с миграциями** запустите `bash deploy/backup.sh` вручную.
 - **Откат кода:** `git revert` проблемного коммита и push в `main` (Actions доставит прежний код) или Run workflow на ветке или теге с нужным кодом; миграции назад не откатываются, восстановление только из дампа.
 

@@ -52,6 +52,28 @@ jobs:
       SSH_PORT: ${{ secrets.SSH_PORT }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Собрать API и админку
+        env:
+          # Под этим префиксом админка проксируется в боевом nginx (https://edu.mipt.ru/adm/cms-admin/);
+          # он влияет на адреса ассетов, поэтому задаётся при сборке.
+          NUXT_APP_BASE_URL: /adm/cms-admin/
+        run: npm run build
+
+      # Сервер получает готовое: dev-зависимости (Nuxt, Nest CLI, vitest) ему не нужны.
+      - name: Production-зависимости API
+        run: |
+          rm -rf node_modules apps/*/node_modules
+          npm ci --omit=dev --workspace @crito/api
+
+      - name: Собрать папку для сервера
+        run: bash deploy/stage.sh "$RUNNER_TEMP/cms-admin"
 
       - name: Настроить ssh
         env:
@@ -76,15 +98,13 @@ jobs:
           set -euo pipefail
           dry=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then dry="--dry-run"; fi
-          # --delete убирает с сервера файлы, удалённые из репозитория. Исключения (в том числе от --delete):
-          # сборка и зависимости, которые живут только на сервере, и локальные .env.
+          # --delete убирает с сервера всё, чего нет в собранной папке. Исключения (в том числе от --delete):
+          # настройки site.env, polyfill-crypto.mjs и локальное хранилище файлов API (api/uploads).
           rsync -az --delete --itemize-changes $dry \
-            --exclude='.git/' --exclude='.github/' \
-            --exclude='node_modules/' --exclude='dist/' --exclude='.output/' --exclude='.nuxt/' \
-            --exclude='apps/api/src/generated/' --exclude='*.tsbuildinfo' \
-            --exclude='.env' --exclude='.env.*' \
+            --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' \
+            --exclude='/.env' --exclude='/.env.*' \
             -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
-            ./ "$SSH_USER@$SSH_HOST:/home/$SSH_USER/crito/"
+            "$RUNNER_TEMP/cms-admin/" "$SSH_USER@$SSH_HOST:/home/$SSH_USER/cms-admin/"
 
       - name: Собрать и перезапустить на сервере
         if: github.event.inputs.dry_run != 'true'
@@ -95,11 +115,8 @@ jobs:
           set -euo pipefail
           node_bin="$HOME/.nvm/versions/node/v24.21.0/bin"
           export PATH="$node_bin:$PATH"
-          # Код и секреты лежат в домашнем каталоге пользователя деплоя, не в /var/www и /etc.
-          export CRITO_ROOT="$HOME/crito"
-          export CRITO_ENV_DIR="$HOME/crito-env"
-          export CRITO_NODE="$node_bin/node"
-          # Под этим префиксом админка проксируется в боевом nginx (https://edu.mipt.ru/adm/cms-admin/).
-          export CRITO_ADMIN_BASE="/adm/cms-admin/"
+          # Папка и site.env лежат в домашнем каталоге пользователя деплоя; nginx и pm2 видят её как
+          # /var/www/edu.mipt.ru/adm/cms-admin (путь зашит в ecosystem.config.cjs).
+          export CRITO_ROOT="$HOME/cms-admin"
           bash "$CRITO_ROOT/deploy/deploy.sh"
           REMOTE
