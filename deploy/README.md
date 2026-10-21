@@ -129,7 +129,7 @@ node apps/api/dist/cli/create-project.main.js --slug rucode --name RuCode \
          -H "x-ci-key: ${{ secrets.CRITO_CI_KEY }}" -H "content-type: application/json" \
          --data-binary @.output/manifest.json
    ```
-3. **Правки сайта** (из TODO README): `richText()` у `award.hero.title`, `personQuote.text`, `personQuote.role`; убрать `id` из `v-bind="item"` в виджетах.
+3. **Правки сайта** (`richText()` у `award.hero.title`, `personQuote.text`, `personQuote.role`; `id` не в DOM): уже сделаны в rucode.
 4. **Кэш в кластере.** Сайт запущен в `cluster` с `instances: max`, а вебхук сброса кэша попадает в один из процессов. Остальные подхватят изменение по TTL (около 60 секунд). Это ожидаемо; если нужно мгновенно, уменьшите `NUXT_CMS_CACHE_TTL`.
 
 ## 7. Перенос контента
