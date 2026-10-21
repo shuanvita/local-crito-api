@@ -5,7 +5,7 @@ const { existsSync, readFileSync } = require('node:fs')
 // лежат в одном файле site.env вне репозитория, чтобы деплой, который перезаписывает этот файл, их не затирал.
 // Разбор написан вручную, без util.parseEnv: pm2 может работать на старом Node, а ошибка в этом файле
 // не должна мешать запуску, поэтому при любом сбое возвращаются пустые настройки.
-const ROOT = '/var/www/edu.mipt.ru/adm/cms-admin'
+const ROOT = '/home/anvshurygin/cms-admin'
 const SITE_ENV = `${ROOT}/site.env`
 
 function readEnvFile(file) {

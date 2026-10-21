@@ -12,7 +12,7 @@
 
 Порты: сайт 3000 (занят), админка **3100**, API **3200**. Остальные админские методы API снаружи закрыты nginx.
 
-> **Боевой сервер (edu.mipt.ru).** Админка работает под `https://edu.mipt.ru/adm/cms-admin/`, а на диске это папка `/home/anvshurygin/cms-admin` (pm2 и nginx видят её как `/var/www/edu.mipt.ru/adm/cms-admin`, путь зашит в `ecosystem.config.cjs`). В неё GitHub Actions кладёт **готовую сборку**, а не репозиторий:
+> **Боевой сервер (edu.mipt.ru).** Админка работает под `https://edu.mipt.ru/adm/cms-admin/`, а на диске это папка `/home/anvshurygin/cms-admin` (этот же путь зашит в `ecosystem.config.cjs`; pm2-пользователь должен проходить по `/home/anvshurygin` и читать папку). В неё GitHub Actions кладёт **готовую сборку**, а не репозиторий:
 >
 > ```
 > cms-admin/
@@ -155,7 +155,7 @@ rm /tmp/pages.json
 - **`site.env`** (`chmod 600`, лежит в корне `cms-admin`, один файл на оба процесса): `DATABASE_URL`, `PUBLIC_BASE_URL`, `SESSION_SECRET`, `SECRETS_KEY`, `ADMIN_TOKEN`, `STORAGE_LOCAL_DIR` и др. переменные API, а также `NUXT_*`. `ecosystem.config.cjs` раздаёт `NUXT_*` только админке, остальное только API; `NUXT_ADMIN_TOKEN` берётся из `ADMIN_TOKEN`. `deploy.sh` и `backup.sh` берут из него `DATABASE_URL` (и `STORAGE_LOCAL_DIR`), не исполняя файл как shell.
 - **Пробный запуск:** Actions → Deploy CMS → Run workflow с галочкой `dry_run`: сборка выполняется, в логе будет список файлов, которые изменятся, ничего не копируется и не перезапускается.
 - **Префикс админки:** `/adm/cms-admin/` задаётся при сборке в workflow (`NUXT_APP_BASE_URL`) и при запуске в `ecosystem.config.cjs` (по умолчанию он же, переопределяется `CRITO_ADMIN_BASE`). Префикс в сборке и в nginx должны совпадать, иначе ассеты `_nuxt` уйдут на сайт и вернут 404.
-- **Переменные:** `CRITO_ROOT` (по умолчанию `/var/www/edu.mipt.ru/adm/cms-admin`; workflow передаёт `$HOME/cms-admin`), `CRITO_PM2` (по умолчанию `/usr/local/bin/pm2`). Ручной запуск: `CRITO_ROOT=~/cms-admin bash ~/cms-admin/deploy/deploy.sh`.
+- **Переменные:** `CRITO_ROOT` (по умолчанию `/home/anvshurygin/cms-admin`; workflow передаёт `$HOME/cms-admin`), `CRITO_PM2` (по умолчанию `/usr/local/bin/pm2`). Ручной запуск: `CRITO_ROOT=~/cms-admin bash ~/cms-admin/deploy/deploy.sh`.
 - **Первый деплой в эту папку:** если раньше запускались процессы `crito-api` и `crito-admin` из другой папки, выполните `pm2 delete crito-api crito-admin`: `reload` не меняет рабочую папку, а админка теперь называется `cms-admin` и занимает тот же порт 3100.
 - **Бэкап:** `crontab -e` → `17 3 * * * bash ~/cms-admin/deploy/backup.sh >> ~/crito-backup.log 2>&1`. Копии на том же сервере (`/var/backups/crito` или `CRITO_BACKUP_DIR`), периодически забирайте их на другую машину.
 - **Перед обновлением с миграциями** запустите `bash deploy/backup.sh` вручную.

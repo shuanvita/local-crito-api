@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Всё в функции: rsync может заменить этот файл на лету, а bash читает скрипт по частям.
 main() {
-  local root="${CRITO_ROOT:-/var/www/edu.mipt.ru/adm/cms-admin}"
+  local root="${CRITO_ROOT:-/home/anvshurygin/cms-admin}"
   local pm2="${CRITO_PM2:-/usr/local/bin/pm2}"
 
   cd "$root"
