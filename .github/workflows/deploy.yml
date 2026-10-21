@@ -103,7 +103,9 @@ jobs:
           # --no-owner --no-group: пользователь деплоя не может назначать группу файлам (chgrp: Operation not permitted).
           # --omit-dir-times --omit-link-times: корень папки и старые ссылки node_modules/.bin принадлежат не ему,
           # время им менять нельзя (failed to set times); у обычных файлов время по-прежнему переносится.
-          rsync -az --no-owner --no-group --omit-dir-times --omit-link-times --delete --itemize-changes $dry \
+          # --no-perms --executability: корень ~/cms-admin принадлежит не пользователю деплоя, chmod на нём даёт
+          # «failed to set permissions on ".../cms-admin/."»; права не переносим, но бит исполнения (скрипты, .bin) сохраняем.
+          rsync -az --no-owner --no-group --no-perms --executability --omit-dir-times --omit-link-times --delete --itemize-changes $dry \
             --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' \
             --exclude='/.env' --exclude='/.env.*' \
             -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
