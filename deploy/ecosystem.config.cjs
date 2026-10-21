@@ -38,7 +38,7 @@ module.exports = {
       name: 'crito-api',
       cwd: `${ROOT}/api`,
       script: './dist/main.js',
-      interpreter: '/usr/bin/node',
+      interpreter: '/root/.nvm/versions/node/v24.22.0/bin/node',
       // Один процесс: локальное хранилище файлов и вебхуки не рассчитаны на кластер.
       exec_mode: 'fork',
       instances: 1,
@@ -54,7 +54,7 @@ module.exports = {
       name: 'cms-admin',
       cwd: ROOT,
       script: './.output/server/index.mjs',
-      interpreter: '/home/anvshurygin/.nvm/versions/node/v24.21.0/bin/node',
+      interpreter: '/root/.nvm/versions/node/v24.22.0/bin/node',
       exec_mode: 'fork',
       instances: 1,
       env: {
