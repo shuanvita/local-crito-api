@@ -120,8 +120,8 @@ jobs:
           set -euo pipefail
           node_bin="$HOME/.nvm/versions/node/v24.21.0/bin"
           export PATH="$node_bin:$PATH"
-          # Папка и site.env лежат в домашнем каталоге пользователя деплоя; pm2 запускает админку
-          # из /home/anvshurygin/cms-admin (путь зашит в ecosystem.config.cjs).
+          # Папка и site.env лежат в домашнем каталоге пользователя деплоя; nginx и pm2 видят её как
+          # /var/www/edu.mipt.ru/adm/cms-admin (путь зашит в ecosystem.config.cjs).
           export CRITO_ROOT="$HOME/cms-admin"
           bash "$CRITO_ROOT/deploy/deploy.sh"
           REMOTE
