@@ -102,14 +102,14 @@ jobs:
           dry=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then dry="--dry-run"; fi
           # --delete убирает с сервера всё, чего нет в собранной папке. Исключения (в том числе от --delete):
-          # настройки site.env, polyfill-crypto.mjs и локальное хранилище файлов API (api/uploads).
+          # настройки site.env, polyfill-crypto.mjs и локальное хранилище файлов API (api/uploads и uploads в корне: туда указывает STORAGE_LOCAL_DIR на боевом сервере).
           # --no-owner --no-group: пользователь деплоя не может назначать группу файлам (chgrp: Operation not permitted).
           # --omit-dir-times --omit-link-times: корень папки и старые ссылки node_modules/.bin принадлежат не ему,
           # время им менять нельзя (failed to set times); у обычных файлов время по-прежнему переносится.
           # --no-perms --executability: корень ~/cms-admin принадлежит не пользователю деплоя, chmod на нём даёт
           # «failed to set permissions on ".../cms-admin/."»; права не переносим, но бит исполнения (скрипты, .bin) сохраняем.
           rsync -az --no-owner --no-group --no-perms --executability --omit-dir-times --omit-link-times --delete --itemize-changes $dry \
-            --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' \
+            --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' --exclude='/uploads/' \
             --exclude='/.env' --exclude='/.env.*' \
             -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
             "$RUNNER_TEMP/cms-admin/" "$SSH_USER@$SSH_HOST:/home/$SSH_USER/cms-admin/"
