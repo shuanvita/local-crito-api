@@ -101,7 +101,9 @@ jobs:
           # --delete убирает с сервера всё, чего нет в собранной папке. Исключения (в том числе от --delete):
           # настройки site.env, polyfill-crypto.mjs и локальное хранилище файлов API (api/uploads).
           # --no-owner --no-group: пользователь деплоя не может назначать группу файлам (chgrp: Operation not permitted).
-          rsync -az --no-owner --no-group --delete --itemize-changes $dry \
+          # --omit-dir-times --omit-link-times: корень папки и старые ссылки node_modules/.bin принадлежат не ему,
+          # время им менять нельзя (failed to set times); у обычных файлов время по-прежнему переносится.
+          rsync -az --no-owner --no-group --omit-dir-times --omit-link-times --delete --itemize-changes $dry \
             --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' \
             --exclude='/.env' --exclude='/.env.*' \
             -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
