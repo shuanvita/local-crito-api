@@ -100,7 +100,8 @@ jobs:
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then dry="--dry-run"; fi
           # --delete убирает с сервера всё, чего нет в собранной папке. Исключения (в том числе от --delete):
           # настройки site.env, polyfill-crypto.mjs и локальное хранилище файлов API (api/uploads).
-          rsync -az --delete --itemize-changes $dry \
+          # --no-owner --no-group: пользователь деплоя не может назначать группу файлам (chgrp: Operation not permitted).
+          rsync -az --no-owner --no-group --delete --itemize-changes $dry \
             --exclude='/site.env' --exclude='/polyfill-crypto.mjs' --exclude='/api/uploads/' \
             --exclude='/.env' --exclude='/.env.*' \
             -e "ssh -i $HOME/.ssh/deploy_key -p ${SSH_PORT:-22} -o IdentitiesOnly=yes" \
