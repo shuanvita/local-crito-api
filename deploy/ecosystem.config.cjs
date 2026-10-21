@@ -7,6 +7,9 @@ const { existsSync, readFileSync } = require('node:fs')
 // не должна мешать запуску, поэтому при любом сбое возвращаются пустые настройки.
 const ROOT = '/var/www/edu.mipt.ru/adm/cms-admin'
 const SITE_ENV = `${ROOT}/site.env`
+// Node для обоих процессов: pm2 на серверах приложений работает от root, и его Node лежит в nvm root.
+// Деплой перезаписывает этот файл на общей шаре, поэтому путь нельзя править только на сервере.
+const NODE = process.env.CRITO_NODE || '/root/.nvm/versions/node/v24.22.0/bin/node'
 
 function readEnvFile(file) {
   try {
@@ -38,7 +41,7 @@ module.exports = {
       name: 'crito-api',
       cwd: `${ROOT}/api`,
       script: './dist/main.js',
-      interpreter: '/root/.nvm/versions/node/v24.22.0/bin/node',
+      interpreter: NODE,
       // Один процесс: локальное хранилище файлов и вебхуки не рассчитаны на кластер.
       exec_mode: 'fork',
       instances: 1,
@@ -54,7 +57,7 @@ module.exports = {
       name: 'cms-admin',
       cwd: ROOT,
       script: './.output/server/index.mjs',
-      interpreter: '/root/.nvm/versions/node/v24.22.0/bin/node',
+      interpreter: NODE,
       exec_mode: 'fork',
       instances: 1,
       env: {
