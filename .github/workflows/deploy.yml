@@ -50,6 +50,9 @@ jobs:
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USER: ${{ secrets.SSH_USER }}
       SSH_PORT: ${{ secrets.SSH_PORT }}
+      # Серверы приложений (алиасы из ~/.ssh/config на cron), где deploy.sh перезапускает pm2. Пустая переменная репозитория
+      # CRITO_WEB_HOSTS переопределяет значение; чтобы отключить перезапуск, задайте в ней пробел.
+      CRITO_WEB_HOSTS: ${{ vars.CRITO_WEB_HOSTS || 'APP1 APP2' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -116,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i "$HOME/.ssh/deploy_key" -p "${SSH_PORT:-22}" -o IdentitiesOnly=yes \
-            "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+            "$SSH_USER@$SSH_HOST" "CRITO_WEB_HOSTS=$(printf '%q' "${CRITO_WEB_HOSTS:-}") bash -s" <<'REMOTE'
           set -euo pipefail
           node_bin="$HOME/.nvm/versions/node/v24.21.0/bin"
           export PATH="$node_bin:$PATH"

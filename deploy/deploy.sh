@@ -8,7 +8,7 @@ set -euo pipefail
 # Всё в функции: rsync может заменить этот файл на лету, а bash читает скрипт по частям.
 main() {
   local root="${CRITO_ROOT:-/var/www/edu.mipt.ru/adm/cms-admin}"
-  local pm2="${CRITO_PM2:-/usr/local/bin/pm2}"
+  local pm2="${CRITO_PM2:-pm2}" # путь к pm2 на серверах приложений; по умолчанию из PATH, как в update_pm2.sh
 
   cd "$root"
   local required
@@ -32,21 +32,45 @@ main() {
   fi
   (cd api && DATABASE_URL="$database_url" ./node_modules/.bin/prisma migrate deploy)
 
-  "$pm2" startOrReload ecosystem.config.cjs --update-env
-  "$pm2" save
+  # Эта машина (cron) только кладёт файлы на общий диск и гоняет миграции. Процессы pm2 живут на серверах
+  # приложений, которые видят ту же папку как /var/www/edu.mipt.ru/adm/cms-admin (на cron этот путь закрыт).
+  # Имена хостов (APP1, APP2) это алиасы из ~/.ssh/config пользователя деплоя на cron.
+  local hosts="${CRITO_WEB_HOSTS:-}"
+  if [ -z "$hosts" ]; then
+    echo "CRITO_WEB_HOSTS не задан: файлы и миграции готовы, перезапустите pm2 на серверах приложений вручную" >&2
+    return 0
+  fi
 
-  # Проверка живости: без неё сбой запуска (например, пропавшая переменная) остался бы незамеченным.
-  local attempt
-  for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS http://127.0.0.1:3200/health >/dev/null; then
-      echo "API отвечает"
-      return 0
+  local web_root="${CRITO_WEB_ROOT:-/var/www/edu.mipt.ru/adm/cms-admin}"
+  local host failed=0
+  for host in $hosts; do
+    echo "== $host =="
+    # Без -t: в Actions нет терминала. Не delete+start, а startOrReload: процессы подхватывают новую сборку без простоя
+    # и создаются, если их ещё нет; корень передаём аргументом (ssh не переносит окружение).
+    if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" bash -s -- "$web_root" "$pm2" <<'REMOTE'
+set -euo pipefail
+root="$1"
+pm2="$2"
+"$pm2" startOrReload "$root/ecosystem.config.cjs" --update-env
+"$pm2" save
+# Проверка живости: без неё сбой запуска (например, пропавшая переменная) остался бы незамеченным.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -fsS http://127.0.0.1:3200/health >/dev/null; then
+    echo "API отвечает"
+    exit 0
+  fi
+  sleep 2
+done
+echo "API не отвечает на /health после перезапуска" >&2
+"$pm2" logs crito-api --lines 30 --nostream || true
+exit 1
+REMOTE
+    then
+      echo "Перезапуск на $host не удался" >&2
+      failed=1
     fi
-    sleep 2
   done
-  echo "API не отвечает на /health после перезапуска" >&2
-  "$pm2" logs crito-api --lines 30 --nostream || true
-  return 1
+  return "$failed"
 }
 
 main "$@"
