@@ -3,7 +3,8 @@ import type { ProjectSummary } from '@crito/contract'
 /** Проекты, доступные пользователю. Общий кэш на все компоненты. */
 export function useProjects() {
   const api = useApi()
-  return useAsyncData('projects', () => api<ProjectSummary[]>('/projects'), {
+  // Со слэшем в конце: запрос без него в проде получал от прокси редирект на http:// (Mixed Content).
+  return useAsyncData('projects', () => api<ProjectSummary[]>('/projects/'), {
     default: () => []
   })
 }
