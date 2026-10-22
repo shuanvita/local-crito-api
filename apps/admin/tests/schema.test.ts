@@ -5,10 +5,13 @@ import {
   createDefault,
   itemTitle,
   moveItem,
+  pickVariant,
   pruneEmpty,
   renumberBlocks,
   resolveSchema,
-  schemaType
+  schemaType,
+  switchVariant,
+  unionOf
 } from '../app/utils/schema'
 
 const faq: JsonSchema = {
@@ -109,5 +112,87 @@ describe('itemTitle', () => {
 
   it('возвращает «Элемент N», если подходящих полей нет', () => {
     expect(itemTitle({ image: 'https://x/y.png' }, 2)).toBe('Элемент 3')
+  })
+})
+
+// Так zod описывает discriminatedUnion('type', [simple, partner]).
+const nomination: JsonSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      title: 'Простая номинация',
+      properties: {
+        type: { type: 'string', const: 'simple' },
+        title: { type: 'string' },
+        description: { type: 'array', items: { type: 'string' } },
+        support: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
+      },
+      required: ['type', 'title', 'description']
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', const: 'partner' },
+        title: { type: 'string' },
+        description: { type: 'array', items: { type: 'string' } },
+        eligibility: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['type', 'title', 'description', 'eligibility']
+    }
+  ]
+}
+
+describe('размеченное объединение', () => {
+  it('находит различитель и берёт название варианта из title, иначе из const', () => {
+    const union = unionOf(nomination, nomination)
+    expect(union?.key).toBe('type')
+    expect(union?.variants.map(v => [v.value, v.title])).toEqual([['simple', 'Простая номинация'], ['partner', 'partner']])
+  })
+
+  it('не считает объединением «тип или null», разные типы и варианты без общего const', () => {
+    expect(unionOf({ anyOf: [{ type: 'string' }, { type: 'null' }] }, {})).toBeNull()
+    expect(unionOf({ anyOf: [{ type: 'string' }, { type: 'number' }] }, {})).toBeNull()
+    expect(unionOf({
+      anyOf: [
+        { type: 'object', properties: { a: { type: 'string' } } },
+        { type: 'object', properties: { b: { type: 'string' } } }
+      ]
+    }, {})).toBeNull()
+    expect(unionOf({
+      anyOf: [
+        { type: 'object', properties: { type: { const: 'x' } } },
+        { type: 'object', properties: { type: { const: 'x' } } }
+      ]
+    }, {})).toBeNull()
+  })
+
+  it('pickVariant выбирает вариант по значению', () => {
+    const union = unionOf(nomination, nomination)!
+    expect(pickVariant(union, { type: 'partner' })?.value).toBe('partner')
+    expect(pickVariant(union, { type: 'другое' })).toBeUndefined()
+    expect(pickVariant(union, null)).toBeUndefined()
+  })
+
+  it('createDefault и createArrayItem создают первый вариант с обязательными полями', () => {
+    const expected = { type: 'simple', title: '', description: [] }
+    expect(createDefault(nomination)).toEqual(expected)
+    expect(createArrayItem(nomination, nomination)).toEqual(expected)
+  })
+
+  it('switchVariant переносит поля с тем же именем и типом, остальные сбрасывает', () => {
+    const union = unionOf(nomination, nomination)!
+    const current = { type: 'simple', title: 'ИИ', description: ['а', 'б'], support: { text: 'x' } }
+    expect(switchVariant(union, nomination, current, 'partner')).toEqual({
+      type: 'partner',
+      title: 'ИИ',
+      description: ['а', 'б'],
+      eligibility: []
+    })
+  })
+
+  it('switchVariant не переносит поле другого типа', () => {
+    const union = unionOf(nomination, nomination)!
+    expect(switchVariant(union, nomination, { type: 'simple', title: 5, description: 'строка' }, 'partner'))
+      .toEqual({ type: 'partner', title: '', description: [], eligibility: [] })
   })
 })

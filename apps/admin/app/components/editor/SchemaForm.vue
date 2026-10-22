@@ -19,6 +19,15 @@ const node = computed(() => resolveSchema(props.schema, props.root))
 const type = computed(() => schemaType(node.value))
 const field = computed(() => node.value['x-field'])
 
+// --- размеченное объединение (zod discriminatedUnion): выбор варианта и форма выбранного ---
+const union = computed(() => unionOf(props.schema, props.root))
+const variant = computed(() => union.value ? pickVariant(union.value, model.value) : undefined)
+const variantItems = computed(() => (union.value?.variants ?? []).map(item => ({ label: item.title, value: item.value })))
+
+function setVariant(value: string) {
+  if (union.value) model.value = switchVariant(union.value, props.root, model.value, value)
+}
+
 // --- object ---
 const objectValue = computed<Record<string, unknown>>(() =>
   model.value && typeof model.value === 'object' && !Array.isArray(model.value)
@@ -26,8 +35,10 @@ const objectValue = computed<Record<string, unknown>>(() =>
     : {}
 )
 
-/** Поле `id` у элементов списков служебное (itemId): его генерирует админка. */
-const propertyKeys = computed(() => Object.keys(node.value.properties ?? {}).filter(key => key !== 'id'))
+/** Поле `id` у элементов списков служебное (itemId): его генерирует админка. Константы (различитель варианта) не правятся. */
+const propertyKeys = computed(() => Object.entries(node.value.properties ?? {})
+  .filter(([key, property]) => key !== 'id' && property.const === undefined)
+  .map(([key]) => key))
 
 function setKey(key: string, value: unknown) {
   const next = { ...objectValue.value }
@@ -43,7 +54,15 @@ function isRequired(key: string) {
 // --- array ---
 const arrayValue = computed<unknown[]>(() => Array.isArray(model.value) ? model.value : [])
 const itemSchema = computed<JsonSchema>(() => node.value.items ?? {})
-const itemIsObject = computed(() => schemaType(resolveSchema(itemSchema.value, props.root)) === 'object')
+const itemUnion = computed(() => unionOf(itemSchema.value, props.root))
+const itemIsObject = computed(() => !!itemUnion.value || schemaType(resolveSchema(itemSchema.value, props.root)) === 'object')
+
+/** Заголовок элемента списка; у элементов с вариантами спереди название варианта. */
+function itemHeader(item: unknown, index: number) {
+  const base = itemTitle(item, index)
+  const picked = itemUnion.value ? pickVariant(itemUnion.value, item) : undefined
+  return picked ? `${picked.title}: ${base}` : base
+}
 
 const opened = ref<Record<string, boolean>>({})
 
@@ -110,10 +129,47 @@ function commitJson() {
 </script>
 
 <template>
+  <!-- объединение с вариантами -->
+  <div v-if="union" class="space-y-4">
+    <UFormField :label="label ? `${label}: вид` : 'Вид'" :required="required" :description="node.description">
+      <USelect
+        :model-value="variant?.value"
+        :items="variantItems"
+        placeholder="Выберите вид"
+        class="w-full"
+        @update:model-value="setVariant"
+      />
+    </UFormField>
+    <SchemaForm
+      v-if="variant"
+      :schema="variant.schema"
+      :root="root"
+      :project="project"
+      required
+      :model-value="model"
+      @update:model-value="model = $event"
+    />
+  </div>
+
   <!-- object -->
-  <div v-if="type === 'object' && node.properties" class="space-y-4">
-    <p v-if="label" class="text-sm font-medium text-highlighted">
-      {{ label }}
+  <div v-else-if="type === 'object' && node.properties" class="space-y-4">
+    <div v-if="label" class="flex items-center justify-between gap-2">
+      <p class="text-sm font-medium text-highlighted">
+        {{ label }}
+      </p>
+      <!-- Необязательный блок (например, «Поддержка») можно убрать целиком: пустой блок сайт всё равно покажет -->
+      <UButton
+        v-if="!required && model !== undefined"
+        label="Убрать"
+        icon="i-lucide-x"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        @click="model = undefined"
+      />
+    </div>
+    <p v-if="label && node.description" class="-mt-3 text-xs text-muted">
+      {{ node.description }}
     </p>
     <div :class="label ? 'space-y-4 border-l-2 border-default pl-4' : 'space-y-4'">
       <SchemaForm
@@ -139,6 +195,10 @@ function commitJson() {
       <UButton label="Добавить" icon="i-lucide-plus" size="xs" color="neutral" variant="subtle" @click="addItem" />
     </div>
 
+    <p v-if="node.description" class="text-xs text-muted">
+      {{ node.description }}
+    </p>
+
     <p v-if="!arrayValue.length" class="rounded-md border border-dashed border-default p-3 text-center text-sm text-muted">
       Пока пусто
     </p>
@@ -157,7 +217,7 @@ function commitJson() {
             @click="opened[itemKey(item, index)] = !opened[itemKey(item, index)]"
           >
             <UIcon :name="opened[itemKey(item, index)] ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="shrink-0 text-muted" />
-            <span class="truncate">{{ itemTitle(item, index) }}</span>
+            <span class="truncate">{{ itemHeader(item, index) }}</span>
           </button>
           <div v-else class="min-w-0 flex-1">
             <SchemaForm

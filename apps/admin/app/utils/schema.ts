@@ -58,8 +58,88 @@ export function newId(): string {
   return crypto.randomUUID()
 }
 
+export interface UnionVariant {
+  /** Значение поля-различителя (`const`), например `simple`. */
+  value: string
+  /** Название для менеджера: `title` варианта в схеме или само значение. */
+  title: string
+  schema: JsonSchema
+}
+
+export interface SchemaUnion {
+  /** Поле-различитель (у zod `discriminatedUnion('type', ...)` это `type`). */
+  key: string
+  variants: UnionVariant[]
+}
+
+/**
+ * Размеченное объединение: `anyOf`/`oneOf` из объектов, у которых есть общее поле с разными `const`.
+ * Так zod описывает `discriminatedUnion`. Любое другое объединение формой не поддерживается (правится как JSON).
+ */
+export function unionOf(schema: JsonSchema, root: JsonSchema): SchemaUnion | null {
+  const node = resolveSchema(schema, root)
+  const list = node.oneOf ?? node.anyOf
+  if (!list || list.length < 2) return null
+
+  const resolved = list.map(variant => resolveSchema(variant, root))
+  if (!resolved.every(variant => schemaType(variant) === 'object' && variant.properties)) return null
+
+  for (const key of Object.keys(resolved[0]!.properties!)) {
+    const values = resolved.map(variant => variant.properties![key]?.const)
+    if (values.every(value => typeof value === 'string') && new Set(values).size === values.length) {
+      return {
+        key,
+        variants: resolved.map((variant, i) => ({
+          value: values[i] as string,
+          title: variant.title ?? (values[i] as string),
+          schema: variant
+        }))
+      }
+    }
+  }
+  return null
+}
+
+export function pickVariant(union: SchemaUnion, value: unknown): UnionVariant | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const current = (value as Record<string, unknown>)[union.key]
+  return union.variants.find(variant => variant.value === current)
+}
+
+function sameKind(schema: JsonSchema, value: unknown): boolean {
+  switch (schemaType(schema)) {
+    case 'array': return Array.isArray(value)
+    case 'object': return !!value && typeof value === 'object' && !Array.isArray(value)
+    case 'string': return typeof value === 'string'
+    case 'number':
+    case 'integer': return typeof value === 'number'
+    case 'boolean': return typeof value === 'boolean'
+    default: return false
+  }
+}
+
+/**
+ * Значение после смены варианта: пустая заготовка нового варианта, в которую переносятся поля
+ * с тем же именем и типом (название, описание). Остальные сбрасываются: схема запрещает лишние поля.
+ */
+export function switchVariant(union: SchemaUnion, root: JsonSchema, current: unknown, value: string): Record<string, unknown> {
+  const variant = union.variants.find(item => item.value === value)
+  const next = { ...(createDefault(variant?.schema ?? {}, root) as Record<string, unknown>) }
+  const old = current && typeof current === 'object' ? current as Record<string, unknown> : {}
+
+  for (const [key, property] of Object.entries(variant?.schema.properties ?? {})) {
+    if (key === union.key || old[key] === undefined) continue
+    if (sameKind(resolveSchema(property, root), old[key])) next[key] = old[key]
+  }
+  next[union.key] = value
+  return next
+}
+
 /** Начальное значение по схеме: пустое, но проходящее проверку required. */
 export function createDefault(schema: JsonSchema, root: JsonSchema = schema): unknown {
+  const union = unionOf(schema, root)
+  if (union) return createDefault(union.variants[0]!.schema, root)
+
   const node = resolveSchema(schema, root)
   if (node.default !== undefined) return structuredClone(node.default)
   if (node.const !== undefined) return node.const
@@ -90,7 +170,8 @@ export function createDefault(schema: JsonSchema, root: JsonSchema = schema): un
 
 /** Новый элемент массива: объектам с полем `id` (itemId) сразу выдаём идентификатор. */
 export function createArrayItem(itemSchema: JsonSchema, root: JsonSchema): unknown {
-  const node = resolveSchema(itemSchema, root)
+  const union = unionOf(itemSchema, root)
+  const node = union ? union.variants[0]!.schema : resolveSchema(itemSchema, root)
   const value = createDefault(itemSchema, root)
   if (schemaType(node) === 'object' && node.properties?.id && value && typeof value === 'object') {
     (value as Record<string, unknown>).id = newId()
