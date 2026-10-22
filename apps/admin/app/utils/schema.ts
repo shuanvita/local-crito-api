@@ -168,6 +168,27 @@ export function createDefault(schema: JsonSchema, root: JsonSchema = schema): un
   }
 }
 
+/**
+ * Запись поля в объект. Если объекта ещё нет (необязательный блок, который начали заполнять),
+ * он создаётся из заготовки с пустыми обязательными полями: иначе нетронутое обязательное поле
+ * (например, `alt` рядом с логотипом) отсутствовало бы в данных и сервер отклонил бы сохранение.
+ */
+export function setObjectKey(
+  current: unknown,
+  schema: JsonSchema,
+  root: JsonSchema,
+  key: string,
+  value: unknown
+): Record<string, unknown> {
+  const base = current && typeof current === 'object' && !Array.isArray(current)
+    ? current as Record<string, unknown>
+    : createDefault(schema, root) as Record<string, unknown>
+  const next = { ...base }
+  if (value === undefined) delete next[key]
+  else next[key] = value
+  return next
+}
+
 /** Новый элемент массива: объектам с полем `id` (itemId) сразу выдаём идентификатор. */
 export function createArrayItem(itemSchema: JsonSchema, root: JsonSchema): unknown {
   const union = unionOf(itemSchema, root)

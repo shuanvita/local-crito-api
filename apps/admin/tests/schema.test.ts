@@ -10,6 +10,7 @@ import {
   renumberBlocks,
   resolveSchema,
   schemaType,
+  setObjectKey,
   switchVariant,
   unionOf
 } from '../app/utils/schema'
@@ -141,6 +142,28 @@ const nomination: JsonSchema = {
     }
   ]
 }
+
+describe('setObjectKey', () => {
+  const support: JsonSchema = {
+    type: 'object',
+    properties: { text: { type: 'string' }, logo: { type: 'string' }, alt: { type: 'string' } },
+    required: ['text', 'logo', 'alt']
+  }
+
+  it('создавая объект, сразу ставит пустые обязательные поля', () => {
+    expect(setObjectKey(undefined, support, support, 'logo', '/a.png')).toEqual({ text: '', logo: '/a.png', alt: '' })
+  })
+
+  it('в существующем объекте меняет только указанное поле', () => {
+    expect(setObjectKey({ text: 'x', logo: 'y', alt: 'z' }, support, support, 'text', 'new'))
+      .toEqual({ text: 'new', logo: 'y', alt: 'z' })
+  })
+
+  it('undefined удаляет поле', () => {
+    expect(setObjectKey({ text: 'x', logo: 'y', alt: 'z' }, support, support, 'alt', undefined))
+      .toEqual({ text: 'x', logo: 'y' })
+  })
+})
 
 describe('размеченное объединение', () => {
   it('находит различитель и берёт название варианта из title, иначе из const', () => {

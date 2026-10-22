@@ -41,10 +41,7 @@ const propertyKeys = computed(() => Object.entries(node.value.properties ?? {})
   .map(([key]) => key))
 
 function setKey(key: string, value: unknown) {
-  const next = { ...objectValue.value }
-  if (value === undefined) delete next[key]
-  else next[key] = value
-  model.value = next
+  model.value = setObjectKey(model.value, node.value, props.root, key, value)
 }
 
 function isRequired(key: string) {
