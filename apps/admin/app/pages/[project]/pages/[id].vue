@@ -43,17 +43,6 @@ const { data: current } = await useAsyncData(
 
 useHead({ title: () => page.value?.slug ?? 'Страница' })
 
-// TODO(metrika-demo): ДЕМО-ДАННЫЕ, чтобы показать менеджерам карточку «Аналитика» до подключения счётчика.
-// Когда зададим настоящий номер проекту (PATCH /projects/:project, metrikaCounterId), удалить:
-// эту константу, computed `metrikaCounter` и проп `demo` здесь и в MetrikaCounter.vue; в шаблоне вернуть
-// `current?.metrikaCounterId`. Поиск по `metrika-demo`.
-const DEMO_METRIKA_COUNTER_ID = '12345678'
-const metrikaCounter = computed(() => {
-  const real = current.value?.metrikaCounterId
-  if (real) return { id: real, demo: false }
-  return page.value?.slug === '/index' ? { id: DEMO_METRIKA_COUNTER_ID, demo: true } : { id: null, demo: false }
-})
-
 // Адрес страницы на сайте: `siteUrl` проекта, а если не задан, origin вебхука; главная `/index` открывается по `/`.
 const origin = computed(() => siteOrigin(current.value))
 const siteUrl = computed(() => page.value ? pageSiteUrl(origin.value, page.value.slug) : null)
@@ -645,7 +634,7 @@ useEventListener(window, 'beforeunload', (event) => {
                     Аналитика
                   </h3>
                 </template>
-                <MetrikaCounter :counter-id="metrikaCounter.id" :demo="metrikaCounter.demo" />
+                <MetrikaCounter :counter-id="current?.metrikaCounterId" />
                 <p class="mt-2 text-xs text-muted">
                   Справка: счётчик общий для всего сайта и здесь не редактируется.
                 </p>

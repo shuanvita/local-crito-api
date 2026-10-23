@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // Номер счётчика Яндекс Метрики: справка для менеджеров, только чтение. Меняют его разработчики.
-// TODO(metrika-demo): проп `demo` и бейдж «Демо» нужны только пока номер демонстрационный; удалить вместе с демо-данными.
-const props = defineProps<{ counterId: string | null | undefined, demo?: boolean }>()
+const props = defineProps<{ counterId: string | null | undefined }>()
 
 const toast = useToast()
 
@@ -24,7 +23,6 @@ async function copy() {
     <template v-if="valid">
       <span class="text-sm text-muted">Счётчик Яндекс Метрики</span>
       <code class="rounded bg-elevated px-2 py-0.5 font-mono text-sm text-highlighted">{{ counterId }}</code>
-      <UBadge v-if="demo" label="Демо" color="warning" variant="subtle" size="sm" />
       <UTooltip text="Скопировать номер">
         <UButton
           icon="i-lucide-copy"
