@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { CommonModule } from './common/common.module.js';
 import { DictionariesModule } from './dictionaries/dictionaries.module.js';
 import { HealthController } from './health/health.controller.js';
+import { IntegrationsModule } from './integrations/integrations.module.js';
 import { validateEnvironment } from './config/env.js';
 import { MediaModule } from './media/media.module.js';
 import { ManifestModule } from './manifest/manifest.module.js';
@@ -30,6 +31,7 @@ import { PublicController, PublicDictionariesController } from './public/public.
     PagesModule,
     DictionariesModule,
     MediaModule,
+    IntegrationsModule,
     RequestsModule,
   ],
   controllers: [PublicDictionariesController, PublicController, HealthController],

@@ -67,6 +67,70 @@ export function client(app: INestApplication) {
 
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
+export interface TelegramStub {
+  /** Значение для `TELEGRAM_API_BASE`. */
+  url: string;
+  /** Токены, которые заглушка считает настоящими; остальные получают 401. */
+  validTokens: Set<string>;
+  /** Чаты, куда `sendMessage` отвечает отказом (403). */
+  failChats: Set<string>;
+  /** Рвать соединения, не отвечая: имитация недоступного Telegram. */
+  down: boolean;
+  /** Что вернёт `getUpdates`. */
+  updates: unknown[];
+  calls: Array<{ method: string; token: string; body: Record<string, unknown> }>;
+  /** Вызовы `sendMessage`: токен, чат и текст. */
+  sent(): Array<{ token: string; chatId: string; text: string }>;
+  close(): Promise<void>;
+}
+
+/** Локальная заглушка Telegram Bot API: запоминает вызовы и отвечает в формате настоящего API. */
+export async function startTelegramStub(): Promise<TelegramStub> {
+  const stub: TelegramStub = {
+    url: '',
+    validTokens: new Set(),
+    failChats: new Set(),
+    down: false,
+    updates: [],
+    calls: [],
+    sent: () =>
+      stub.calls
+        .filter((call) => call.method === 'sendMessage')
+        .map((call) => ({ token: call.token, chatId: String(call.body.chat_id), text: String(call.body.text) })),
+    close: () => Promise.resolve(),
+  };
+  const server: Server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      if (stub.down) return req.socket.destroy();
+      const match = /^\/bot([^/]+)\/(\w+)$/.exec(req.url ?? '');
+      const reply = (status: number, payload: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(payload));
+      };
+      if (!match) return reply(404, { ok: false, description: 'Not Found' });
+      const [, token, method] = match;
+      const body = JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>;
+      stub.calls.push({ method, token, body });
+      if (!stub.validTokens.has(token)) return reply(401, { ok: false, description: 'Unauthorized' });
+      if (method === 'getMe') return reply(200, { ok: true, result: { username: 'rucode_bot' } });
+      if (method === 'getUpdates') return reply(200, { ok: true, result: stub.updates });
+      if (method === 'sendMessage') {
+        if (stub.failChats.has(String(body.chat_id))) {
+          return reply(403, { ok: false, description: 'Forbidden: bot was kicked from the group chat' });
+        }
+        return reply(200, { ok: true, result: { message_id: 1 } });
+      }
+      return reply(404, { ok: false, description: 'Not Found' });
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  stub.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  stub.close = () => new Promise((resolve) => server.close(() => resolve()));
+  return stub;
+}
+
 export interface WebhookRecorder {
   url: string;
   calls: Array<{ method?: string; secret?: string }>;

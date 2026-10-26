@@ -9,6 +9,17 @@ export type { ContentBlock, ContentPage, ContentPageMeta, PageFooter, PageHeader
 export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest } from './dictionaries.js'
 export type { ApiErrorBody } from './errors.js'
 export type { ExportFile } from './import.js'
+export type {
+  IntegrationSummary,
+  IntegrationType,
+  TelegramChat,
+  TelegramChatCandidate,
+  TelegramDeliveryResult,
+  TelegramDiscoverResponse,
+  TelegramIntegration,
+  TelegramTestResponse,
+  UpdateTelegramIntegrationRequest,
+} from './integrations.js'
 export type { BlockManifest, JsonSchema, ManifestBlock } from './manifest.js'
 export type { CurrentUser } from './me.js'
 export type { MediaItem } from './media.js'

@@ -74,3 +74,6 @@ export class SecretBox {
 
 /** Контекст шифрования секрета вебхука проекта. */
 export const REVALIDATE_SECRET_CONTEXT = 'Project.revalidateSecret';
+
+/** Контекст шифрования токена Telegram-бота проекта. */
+export const TELEGRAM_SECRET_CONTEXT = 'ProjectIntegration.telegram.secret';

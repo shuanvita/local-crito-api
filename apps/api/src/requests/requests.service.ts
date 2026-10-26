@@ -4,6 +4,7 @@ import { AccessService } from '../auth/access.service.js';
 import type { Principal } from '../auth/auth.types.js';
 import { PrismaService } from '../common/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { IntegrationsDispatcher } from '../integrations/integrations.dispatcher.js';
 import type { ListSubmissionsQuery, SubmitFormDto } from './requests.dto.js';
 
 const MAX_FIELDS = 50;
@@ -49,6 +50,7 @@ export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly integrations: IntegrationsDispatcher,
   ) {}
 
   /**
@@ -56,7 +58,10 @@ export class RequestsService {
    * бот не узнаёт, что его заметили. Неизвестный проект это 404 (как у публичных страниц).
    */
   async submit(projectSlug: string, dto: SubmitFormDto): Promise<{ accepted: true }> {
-    const project = await this.prisma.project.findUnique({ where: { slug: projectSlug }, select: { id: true } });
+    const project = await this.prisma.project.findUnique({
+      where: { slug: projectSlug },
+      select: { id: true, name: true },
+    });
     if (!project) throw new NotFoundException('Проект не найден');
 
     if (dto.website) return { accepted: true };
@@ -64,7 +69,7 @@ export class RequestsService {
     this.assertRateLimit(project.id);
     const fields = normalizeFields(dto.fields);
 
-    await this.prisma.formSubmission.create({
+    const submission = await this.prisma.formSubmission.create({
       data: {
         projectId: project.id,
         formKey: dto.form,
@@ -75,6 +80,17 @@ export class RequestsService {
         fields: fields as unknown as Prisma.InputJsonValue,
         searchText: buildSearchText(fields),
       },
+      select: { id: true, pageUrl: true },
+    });
+    // Только после сохранения и в фоне: сбой интеграции не должен ни потерять заявку, ни задержать ответ сайту.
+    this.integrations.onSubmission({
+      projectId: project.id,
+      projectSlug,
+      projectName: project.name,
+      submissionId: submission.id,
+      formKey: dto.form,
+      pageUrl: submission.pageUrl,
+      fields,
     });
     return { accepted: true };
   }

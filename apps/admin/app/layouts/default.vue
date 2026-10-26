@@ -69,6 +69,14 @@ const links = computed<NavigationMenuItem[][]>(() => [
           : []),
         ...(me.value?.isSuperAdmin
           ? [{
+              label: 'Интеграции',
+              icon: 'i-lucide-plug',
+              to: `/${slug.value}/integrations`,
+              onSelect: close
+            }]
+          : []),
+        ...(me.value?.isSuperAdmin
+          ? [{
               label: 'Настройки',
               icon: 'i-lucide-settings',
               to: `/${slug.value}/settings`,

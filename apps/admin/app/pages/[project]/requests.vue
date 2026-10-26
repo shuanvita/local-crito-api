@@ -130,7 +130,32 @@ const detail = ref<FormSubmissionDetail>()
 const detailLoading = ref(false)
 const slideoverOpen = computed({
   get: () => !!selected.value,
-  set: (value) => { if (!value) selected.value = undefined }
+  set: (value) => {
+    if (value) return
+    selected.value = undefined
+    // Закрыли заявку, открытую по ссылке из уведомления: убираем id, чтобы обновление страницы не открыло её снова.
+    if (route.query.id) navigateTo({ query: { ...route.query, id: undefined } }, { replace: true })
+  }
+})
+
+/** Заявка по ссылке `?id=` (её присылает уведомление в Telegram). */
+async function openById(id: string) {
+  detail.value = undefined
+  detailLoading.value = true
+  try {
+    const response = await api<FormSubmissionDetail>(`/projects/${project.value}/requests/${id}`)
+    selected.value = response
+    detail.value = response
+  } catch (error) {
+    toast.add({ title: 'Не удалось открыть заявку', description: apiErrorMessage(error), color: 'error' })
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+onMounted(() => {
+  const id = route.query.id
+  if (typeof id === 'string' && id && fullAccess.value) openById(id)
 })
 
 async function openRow(_event: Event, row: { original: FormSubmissionItem }) {

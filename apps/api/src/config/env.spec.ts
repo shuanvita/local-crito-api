@@ -63,6 +63,14 @@ describe('validateEnvironment', () => {
     }
   });
 
+  it('TELEGRAM_API_BASE необязателен, но должен быть адресом', () => {
+    expect(() => validateEnvironment({ ...good, TELEGRAM_API_BASE: '' })).not.toThrow();
+    expect(() => validateEnvironment({ ...good, TELEGRAM_API_BASE: 'https://tg-proxy.example.ru' })).not.toThrow();
+    for (const bad of ['tg-proxy.example.ru', 'ftp://x', 'not a url']) {
+      expect(() => validateEnvironment({ ...good, TELEGRAM_API_BASE: bad })).toThrow('TELEGRAM_API_BASE');
+    }
+  });
+
   it('перечисляет все проблемы сразу и подсказывает, как включить разработку', () => {
     try {
       validateEnvironment({ DATABASE_URL: 'x', AUTH_DEV_BYPASS: 'true' });

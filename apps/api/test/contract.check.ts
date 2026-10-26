@@ -13,6 +13,7 @@ import type {
   CurrentUser,
   FormSubmissionDetail,
   FormSubmissionList,
+  IntegrationSummary,
   MediaItem,
   PageDetail,
   PageListItem,
@@ -22,10 +23,14 @@ import type {
   RegionItem,
   RotateCiKeyResponse,
   SubmitFormResponse,
+  TelegramDiscoverResponse,
+  TelegramIntegration,
+  TelegramTestResponse,
   TrashedPageItem,
 } from '@crito/contract';
 import type { MeController } from '../src/auth/me.controller.js';
 import type { DictionariesService } from '../src/dictionaries/dictionaries.service.js';
+import type { IntegrationsService } from '../src/integrations/integrations.service.js';
 import type { ManifestService } from '../src/manifest/manifest.service.js';
 import type { MediaService } from '../src/media/media.service.js';
 import type { PagesService } from '../src/pages/pages.service.js';
@@ -75,6 +80,12 @@ export type ContractChecks = [
   Expect<Extends<Wire<ReturnType<RequestsService['list']>>, FormSubmissionList>>,
   Expect<Extends<Wire<ReturnType<RequestsService['get']>>, FormSubmissionDetail>>,
   Expect<Extends<Wire<ReturnType<RequestsService['submit']>>, SubmitFormResponse>>,
+  // интеграции
+  Expect<Extends<Wire<ReturnType<IntegrationsService['list']>>, IntegrationSummary[]>>,
+  Expect<Extends<Wire<ReturnType<IntegrationsService['getTelegram']>>, TelegramIntegration>>,
+  Expect<Extends<Wire<ReturnType<IntegrationsService['updateTelegram']>>, TelegramIntegration>>,
+  Expect<Extends<Wire<ReturnType<IntegrationsService['testTelegram']>>, TelegramTestResponse>>,
+  Expect<Extends<Wire<ReturnType<IntegrationsService['discoverTelegramChats']>>, TelegramDiscoverResponse>>,
   // текущий пользователь
   Expect<Extends<ReturnType<MeController['me']>, CurrentUser>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)

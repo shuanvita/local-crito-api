@@ -21,6 +21,12 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     errors.push(`ADMIN_TOKEN должен быть не короче ${MIN_ADMIN_TOKEN_LENGTH} символов или не задан`);
   }
 
+  // Необязательный адрес Bot API (прокси или заглушка в тестах); в любом режиме должен быть адресом, а не мусором.
+  const telegramBase = text('TELEGRAM_API_BASE');
+  if (telegramBase && !/^https?:\/\/[^\s/]+/i.test(telegramBase)) {
+    errors.push('TELEGRAM_API_BASE должен быть адресом вида https://api.telegram.org');
+  }
+
   if (!development) {
     if (text('AUTH_DEV_BYPASS') === 'true') {
       errors.push('AUTH_DEV_BYPASS=true разрешён только при NODE_ENV=development');
