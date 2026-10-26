@@ -27,8 +27,8 @@ const items = computed<DropdownMenuItem[][]>(() => [
     :ui="{ content: collapsed ? 'w-48' : 'w-(--reka-dropdown-menu-trigger-width)' }"
   >
     <UButton
-      :label="collapsed ? undefined : (current?.name ?? 'Выберите проект')"
-      icon="i-lucide-globe"
+      :label="collapsed ? undefined : (current?.name ?? 'Все проекты')"
+      :icon="current ? 'i-lucide-globe' : 'i-lucide-layout-grid'"
       :trailing-icon="collapsed ? undefined : 'i-lucide-chevrons-up-down'"
       color="neutral"
       variant="ghost"

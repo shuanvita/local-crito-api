@@ -42,6 +42,11 @@ const links = computed<NavigationMenuItem[][]>(() => [
   // Разделы проекта видны, только пока открыт проект.
   ...(slug.value
     ? [[
+        // Подпись отделяет меню проекта от общего; в свёрнутом сайдбаре её не видно.
+        {
+          label: projects.value.find(item => item.slug === slug.value)?.name ?? slug.value,
+          type: 'label' as const
+        },
         {
           label: 'Страницы',
           icon: 'i-lucide-files',
@@ -111,8 +116,23 @@ const links = computed<NavigationMenuItem[][]>(() => [
 
       <template #footer="{ collapsed }">
         <UColorModeButton v-if="collapsed" />
-        <div v-else class="flex w-full items-center justify-between">
-          <span class="text-sm text-muted">Crito CMS</span>
+        <div v-else class="flex w-full items-center justify-between gap-2">
+          <div class="flex min-w-0 items-center gap-2">
+            <UAvatar
+              :text="(me?.name ?? me?.email ?? 'C').charAt(0).toUpperCase()"
+              size="sm"
+              class="shrink-0"
+              aria-hidden="true"
+            />
+            <div class="min-w-0 leading-tight">
+              <p class="truncate text-sm font-medium text-highlighted">
+                {{ me?.name ?? me?.email ?? 'Crito CMS' }}
+              </p>
+              <p v-if="me" class="truncate text-xs text-muted">
+                {{ me.isSuperAdmin ? 'Администратор' : 'Редактор' }}
+              </p>
+            </div>
+          </div>
           <UColorModeButton />
         </div>
       </template>

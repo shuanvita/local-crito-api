@@ -10,16 +10,18 @@ if (projects.value.length === 1 && me.value && !me.value.isSuperAdmin) {
   await navigateTo(`/${projects.value[0]!.slug}/pages`, { replace: true })
 }
 
-const dateFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
-const formatDate = (value: string) => dateFormat.format(new Date(value))
+// Поиск нужен, только когда проектов несколько.
+const query = ref('')
+const visible = computed(() => {
+  const needle = query.value.trim().toLowerCase()
+  if (!needle) return projects.value
+  return projects.value.filter(project =>
+    project.name.toLowerCase().includes(needle) || project.slug.toLowerCase().includes(needle))
+})
 
-/** «1 страница», «2 страницы», «5 страниц». */
-function pagesLabel(count: number): string {
-  const mod10 = count % 10
-  const mod100 = count % 100
-  if (mod10 === 1 && mod100 !== 11) return `${count} страница`
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} страницы`
-  return `${count} страниц`
+/** Домен сайта для подписи под названием: `nuxt.rucode.net`. */
+function siteHost(origin: string | null): string | null {
+  return origin ? new URL(origin).host : null
 }
 </script>
 
@@ -30,78 +32,159 @@ function pagesLabel(count: number): string {
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
+        <template v-if="projects.length" #trailing>
+          <UBadge :label="String(projects.length)" color="neutral" variant="subtle" size="sm" />
+        </template>
+        <template v-if="projects.length > 1" #right>
+          <UInput
+            v-model="query"
+            icon="i-lucide-search"
+            placeholder="Найти проект"
+            aria-label="Найти проект"
+            class="w-48 sm:w-64"
+          />
+        </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
-      <div v-if="status === 'pending'" class="text-muted">
-        Загрузка…
-      </div>
+      <div class="mx-auto w-full max-w-6xl">
+        <p class="mb-5 text-sm text-muted">
+          Сайты, к которым у вас есть доступ
+        </p>
 
-      <UAlert
-        v-else-if="!projects.length"
-        color="neutral"
-        variant="subtle"
-        icon="i-lucide-info"
-        title="Нет доступных проектов"
-        description="Доступ к проектам и страницам выдаётся в админке LMS."
-      />
+        <div v-if="status === 'pending'" class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          <USkeleton v-for="index in 3" :key="index" class="h-40 rounded-lg" />
+        </div>
 
-      <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <NuxtLink
-          v-for="project in projects"
-          :key="project.id"
-          :to="`/${project.slug}/pages`"
-          class="block"
+        <div
+          v-else-if="!projects.length"
+          class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-default px-6 py-16 text-center"
         >
-          <UCard class="h-full transition hover:ring-primary">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="truncate font-medium text-highlighted">
+          <UIcon name="i-lucide-folder-open" class="size-12 text-dimmed" />
+          <p class="font-medium text-highlighted">
+            Нет доступных проектов
+          </p>
+          <p class="max-w-sm text-sm text-muted">
+            Доступ к проектам и страницам выдаётся в админке LMS.
+          </p>
+        </div>
+
+        <div
+          v-else-if="!visible.length"
+          class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-default px-6 py-16 text-center"
+        >
+          <UIcon name="i-lucide-search-x" class="size-12 text-dimmed" />
+          <p class="font-medium text-highlighted">
+            Ничего не найдено
+          </p>
+          <p class="text-sm text-muted">
+            Проекта «{{ query }}» нет среди доступных.
+          </p>
+        </div>
+
+        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          <!-- Карточка не обёрнута в ссылку: внутри есть свои ссылки. Основная растянута на всю карточку. -->
+          <UCard
+            v-for="project in visible"
+            :key="project.id"
+            class="group relative h-full transition hover:shadow-sm hover:ring-primary"
+            :ui="{ body: 'flex h-full flex-col gap-4 p-4 sm:p-4' }"
+          >
+            <div class="flex items-start gap-3">
+              <UAvatar
+                :text="project.name.charAt(0).toUpperCase()"
+                size="lg"
+                class="shrink-0 bg-primary/10 font-semibold text-primary"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 flex-1">
+                <NuxtLink
+                  :to="`/${project.slug}/pages`"
+                  class="block truncate font-medium text-highlighted outline-none after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-primary"
+                >
                   {{ project.name }}
-                </p>
-                <p class="truncate text-sm text-muted">
-                  {{ project.slug }}
+                </NuxtLink>
+                <p class="truncate font-mono text-xs text-muted">
+                  {{ siteHost(siteOrigin(project)) ?? project.slug }}
                 </p>
               </div>
-              <UBadge
-                v-if="!project.manifestHash"
-                color="warning"
-                variant="subtle"
-                label="Нет манифеста"
-              />
+              <div class="flex shrink-0 flex-col items-end gap-1">
+                <UBadge
+                  :color="project.fullAccess ? 'primary' : 'neutral'"
+                  variant="subtle"
+                  size="sm"
+                  :label="project.fullAccess ? 'Весь проект' : 'Отдельные страницы'"
+                />
+                <UBadge
+                  v-if="!project.manifestHash"
+                  color="warning"
+                  variant="subtle"
+                  size="sm"
+                  label="Нет манифеста"
+                />
+              </div>
             </div>
 
-            <dl class="mt-4 space-y-1 text-sm">
-              <div class="flex items-center gap-2 text-muted">
-                <UIcon name="i-lucide-files" class="size-4 shrink-0" />
-                <dt class="sr-only">
-                  {{ project.fullAccess ? 'Страницы' : 'Доступные страницы' }}
-                </dt>
-                <dd>
-                  {{ project.fullAccess ? pagesLabel(project.pagesCount) : `${pagesLabel(project.pagesCount)} для редактирования` }}
-                </dd>
-              </div>
-              <div class="flex items-center gap-2 text-muted">
-                <UIcon name="i-lucide-clock" class="size-4 shrink-0" />
-                <dt class="sr-only">
-                  Последнее изменение
-                </dt>
-                <dd>
-                  {{ project.lastChangedAt ? formatDate(project.lastChangedAt) : 'Изменений пока нет' }}
-                </dd>
-              </div>
-            </dl>
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-files" class="pointer-events-none size-4 shrink-0" />
+                {{ project.fullAccess ? pagesLabel(project.pagesCount) : `${pagesLabel(project.pagesCount)} для редактирования` }}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span v-if="project.lastChangedAt" class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-clock" class="pointer-events-none size-4 shrink-0" />
+                изменено {{ formatRelative(project.lastChangedAt) }}
+              </span>
+              <span v-else class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-clock" class="pointer-events-none size-4 shrink-0" />
+                Изменений пока нет
+              </span>
+            </p>
 
-            <div class="mt-3">
-              <UBadge
-                :color="project.fullAccess ? 'primary' : 'neutral'"
-                variant="subtle"
-                :label="project.fullAccess ? 'Весь проект' : 'Отдельные страницы'"
+            <!-- Быстрые переходы: кнопки поверх растянутой ссылки (z-10), а промежутки между ними пропускают клик к ней. -->
+            <div class="pointer-events-none relative z-10 -mx-1 mt-auto flex flex-wrap items-center gap-1 border-t border-default pt-3 [&>a]:pointer-events-auto">
+              <UButton
+                :to="`/${project.slug}/pages`"
+                icon="i-lucide-files"
+                label="Страницы"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+              />
+              <UButton
+                :to="`/${project.slug}/media`"
+                icon="i-lucide-image"
+                label="Медиатека"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+              />
+              <UButton
+                v-if="project.fullAccess"
+                :to="`/${project.slug}/requests`"
+                icon="i-lucide-inbox"
+                label="Заявки"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+              />
+              <!-- Только иконка: с подписью строка не помещается в карточку и переносится. -->
+              <UButton
+                v-if="siteOrigin(project)"
+                :to="siteOrigin(project)!"
+                target="_blank"
+                icon="i-lucide-external-link"
+                aria-label="Открыть сайт"
+                title="Открыть сайт"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                class="ms-auto"
               />
             </div>
           </UCard>
-        </NuxtLink>
+        </div>
       </div>
     </template>
   </UDashboardPanel>

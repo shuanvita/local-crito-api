@@ -58,19 +58,6 @@ const trashRows = computed(() => matches(trash.value))
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
 const formatDate = (value: string) => dateFormat.format(new Date(value))
 
-// «2 дня назад» читается быстрее даты; полная дата остаётся в подсказке.
-const relativeFormat = new Intl.RelativeTimeFormat('ru-RU', { numeric: 'auto' })
-const relativeUnits: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 31_536_000], ['month', 2_592_000], ['day', 86_400], ['hour', 3_600], ['minute', 60]
-]
-function formatRelative(value: string) {
-  const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000)
-  for (const [unit, size] of relativeUnits) {
-    if (Math.abs(seconds) >= size) return relativeFormat.format(Math.round(seconds / size), unit)
-  }
-  return 'только что'
-}
-
 const UButtonComponent = resolveComponent('UButton')
 const UBadgeComponent = resolveComponent('UBadge')
 
