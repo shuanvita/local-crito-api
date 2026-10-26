@@ -94,8 +94,7 @@ export class TelegramClient {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
-      const timeout = (error as Error).name === 'TimeoutError';
-      throw new TelegramError(timeout ? 'Telegram не ответил вовремя' : 'Не удалось связаться с Telegram', 'network');
+      throw new TelegramError(networkMessage(error), 'network');
     }
 
     let payload: TelegramResponse<T> | undefined;
@@ -114,6 +113,20 @@ export class TelegramClient {
     }
     return payload.result as T;
   }
+}
+
+/**
+ * Текст сетевой ошибки. Сообщение исключения `fetch` не берём (в нём может быть адрес с токеном),
+ * но код причины (`ETIMEDOUT`, `ENOTFOUND`...) безопасен и нужен, чтобы понять, что не так с сетью сервера.
+ */
+function networkMessage(error: unknown): string {
+  if ((error as Error).name === 'TimeoutError') return 'Telegram не ответил вовремя';
+  const cause = (error as { cause?: { code?: unknown, errors?: Array<{ code?: unknown }> } }).cause;
+  const code = cause?.code ?? cause?.errors?.[0]?.code;
+  // Только вид «ETIMEDOUT»: произвольную строку в сообщение не пускаем.
+  return typeof code === 'string' && /^[A-Z0-9_]{3,40}$/.test(code)
+    ? `Не удалось связаться с Telegram (${code})`
+    : 'Не удалось связаться с Telegram';
 }
 
 function chatTitle(chat: TelegramChatInfo): string {
