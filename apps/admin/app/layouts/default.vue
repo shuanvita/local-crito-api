@@ -103,7 +103,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
         <!-- В свёрнутом сайдбаре (64px) широкий логотип не помещается и сжимается: прячем его. -->
         <NuxtLink v-if="!collapsed" to="/" class="block" aria-label="Crito CMS">
           <!-- Тёмный текст логотипа нечитаем на тёмной теме: в ней показываем белый вариант. -->
-          <img :src="logoSrc" alt="ЦРИТО1" class="h-9 w-auto dark:hidden">
+          <img :src="logoSrc" alt="ЦРИТО" class="h-9 w-auto dark:hidden">
           <img :src="logoWhiteSrc" alt="ЦРИТО" class="hidden h-9 w-auto dark:block">
         </NuxtLink>
       </template>
