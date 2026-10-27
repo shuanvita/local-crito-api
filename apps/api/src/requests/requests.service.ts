@@ -151,6 +151,19 @@ export class RequestsService {
     return { ...toItem(row), fields: row.fields as unknown as Record<string, SubmissionFieldValue> };
   }
 
+  /**
+   * Окончательное удаление (корзины у заявок нет). Только администратор: владелец проекта заявки читает,
+   * но не стирает, чтобы персональные данные нельзя было убрать без следа. Права проверяются раньше проекта,
+   * чтобы не-администратор не мог по 404/403 узнать, существует ли проект.
+   */
+  async remove(principal: Principal, projectSlug: string, id: string): Promise<void> {
+    this.access.assertSuperAdmin(principal);
+    const project = await this.findProject(projectSlug);
+    // Фильтр по проекту обязателен: заявка другого проекта по этому адресу не удаляется.
+    const { count } = await this.prisma.formSubmission.deleteMany({ where: { id, projectId: project.id } });
+    if (count === 0) throw new NotFoundException('Заявка не найдена');
+  }
+
   private assertRateLimit(projectId: string) {
     const now = Date.now();
     const recent = (this.accepted.get(projectId) ?? []).filter((time) => now - time < RATE_WINDOW_MS);

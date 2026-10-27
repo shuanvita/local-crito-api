@@ -203,3 +203,46 @@ describe('права и изоляция проектов', () => {
     await http.get(listUrl('no-such-project'), admin).expect(404);
   });
 });
+
+describe('удаление заявок', () => {
+  let id: string;
+  let otherId: string;
+  const idOf = async (form: string, token: string, project = PROJECT) =>
+    ((await http.get(listUrl(project, `?form=${form}`), token).expect(200)).body as FormSubmissionList).items[0].id;
+
+  beforeAll(async () => {
+    await submit({ name: 'Удаляемая' }, { form: 'to-delete' }).expect(201);
+    await submit({ name: 'Чужая удаляемая' }, { form: 'to-delete-other' }, OTHER).expect(201);
+    id = await idOf('to-delete', admin);
+    otherId = await idOf('to-delete-other', admin, OTHER);
+  });
+
+  it('владелец проекта и редактор страниц удалить не могут: 403, заявка остаётся', async () => {
+    await http.delete(`/projects/${PROJECT}/requests/${id}`, owner).expect(403);
+    await http.delete(`/projects/${PROJECT}/requests/${id}`, pagesOnly).expect(403);
+    await http.get(`/projects/${PROJECT}/requests/${id}`, owner).expect(200);
+  });
+
+  it('без сессии: 401', async () => {
+    await http.delete(`/projects/${PROJECT}/requests/${id}`).expect(401);
+  });
+
+  it('заявку нельзя удалить через адрес другого проекта: 404', async () => {
+    await http.delete(`/projects/${OTHER}/requests/${id}`, admin).expect(404);
+    await http.get(`/projects/${PROJECT}/requests/${id}`, owner).expect(200);
+  });
+
+  it('администратор удаляет заявку: 204, она пропадает из списка и просмотра; чужие целы', async () => {
+    await http.delete(`/projects/${PROJECT}/requests/${id}`, admin).expect(204);
+    await http.get(`/projects/${PROJECT}/requests/${id}`, owner).expect(404);
+    const list = (await http.get(listUrl(PROJECT, '?form=to-delete'), owner).expect(200)).body as FormSubmissionList;
+    expect(list.total).toBe(0);
+    await http.get(`/projects/${OTHER}/requests/${otherId}`, admin).expect(200);
+  });
+
+  it('повторное удаление и неизвестная заявка: 404', async () => {
+    await http.delete(`/projects/${PROJECT}/requests/${id}`, admin).expect(404);
+    await http.delete(`/projects/${PROJECT}/requests/nope`, admin).expect(404);
+    await http.delete('/projects/no-such-project/requests/nope', admin).expect(404);
+  });
+});

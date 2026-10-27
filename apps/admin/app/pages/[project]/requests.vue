@@ -175,6 +175,29 @@ async function openRow(_event: Event, row: { original: FormSubmissionItem }) {
 }
 
 const fieldValue = (value: string | string[]) => Array.isArray(value) ? value.join(', ') : value
+
+// --- удаление (только администратор; сами права всё равно проверяет API) ---
+const { data: me } = await useMe()
+const canDelete = computed(() => me.value?.isSuperAdmin === true)
+const deleteOpen = ref(false)
+const deleting = ref(false)
+
+async function confirmDelete() {
+  const id = selected.value?.id
+  if (!id) return
+  deleting.value = true
+  try {
+    await api(`/projects/${project.value}/requests/${id}`, { method: 'DELETE' })
+    toast.add({ title: 'Заявка удалена', color: 'success' })
+    deleteOpen.value = false
+    slideoverOpen.value = false
+    await load()
+  } catch (error) {
+    toast.add({ title: 'Не удалось удалить заявку', description: apiErrorMessage(error), color: 'error' })
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -282,7 +305,27 @@ const fieldValue = (value: string | string[]) => Array.isArray(value) ? value.jo
             </dl>
           </div>
         </template>
+
+        <template v-if="canDelete" #footer>
+          <UButton
+            label="Удалить заявку"
+            icon="i-lucide-trash-2"
+            color="error"
+            variant="subtle"
+            :disabled="!detail"
+            @click="deleteOpen = true"
+          />
+        </template>
       </USlideover>
+
+      <ConfirmModal
+        v-model:open="deleteOpen"
+        title="Удалить заявку?"
+        description="Заявка будет удалена без возможности восстановления."
+        confirm-label="Удалить"
+        :loading="deleting"
+        @confirm="confirmDelete"
+      />
     </template>
   </UDashboardPanel>
 </template>
