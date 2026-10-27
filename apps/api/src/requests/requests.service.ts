@@ -11,6 +11,7 @@ const MAX_FIELDS = 50;
 const MAX_KEY_LENGTH = 64;
 const MAX_VALUE_LENGTH = 5000;
 const MAX_LIST_ITEMS = 50;
+const MAX_LABEL_LENGTH = 500;
 /** Общий размер полей: форма участия укладывается в килобайты, больше это уже не заявка. */
 const MAX_TOTAL_LENGTH = 50_000;
 const DEFAULT_PAGE_SIZE = 50;
@@ -30,7 +31,10 @@ export interface StoredSubmission {
   createdAt: Date;
 }
 
-export type StoredSubmissionDetail = StoredSubmission & { fields: Record<string, SubmissionFieldValue> };
+export type StoredSubmissionDetail = StoredSubmission & {
+  fields: Record<string, SubmissionFieldValue>;
+  labels: Record<string, string>;
+};
 
 const listSelect = {
   id: true,
@@ -68,6 +72,7 @@ export class RequestsService {
 
     this.assertRateLimit(project.id);
     const fields = normalizeFields(dto.fields);
+    const labels = normalizeLabels(dto.labels, fields);
 
     const submission = await this.prisma.formSubmission.create({
       data: {
@@ -78,6 +83,7 @@ export class RequestsService {
         phone: pickText(fields, 'phone'),
         pageUrl: dto.pageUrl?.trim() || null,
         fields: fields as unknown as Prisma.InputJsonValue,
+        ...(labels ? { labels: labels as unknown as Prisma.InputJsonValue } : {}),
         searchText: buildSearchText(fields),
       },
       select: { id: true, pageUrl: true },
@@ -145,10 +151,14 @@ export class RequestsService {
     // Фильтр по проекту обязателен: заявка другого проекта для этого проекта не существует.
     const row = await this.prisma.formSubmission.findFirst({
       where: { id, projectId: project.id },
-      select: { ...listSelect, fields: true },
+      select: { ...listSelect, fields: true, labels: true },
     });
     if (!row) throw new NotFoundException('Заявка не найдена');
-    return { ...toItem(row), fields: row.fields as unknown as Record<string, SubmissionFieldValue> };
+    return {
+      ...toItem(row),
+      fields: row.fields as unknown as Record<string, SubmissionFieldValue>,
+      labels: (row.labels ?? {}) as unknown as Record<string, string>,
+    };
   }
 
   /**
@@ -223,6 +233,24 @@ export function normalizeFields(input: unknown): Record<string, SubmissionFieldV
   }
   if (total > MAX_TOTAL_LENGTH) throw new BadRequestException('Заявка слишком большая');
   return { ...result };
+}
+
+/**
+ * Подписи полей вторичны, поэтому они чинятся, а не отвергаются: заявка с кривой подписью важнее самой подписи.
+ * Берутся строки для полей, которые есть в заявке; пустые и лишние отбрасываются, длинные обрезаются.
+ */
+export function normalizeLabels(
+  input: unknown,
+  fields: Record<string, SubmissionFieldValue>,
+): Record<string, string> | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  const result: Record<string, string> = Object.create(null);
+  for (const [key, value] of Object.entries(input)) {
+    if (!Object.hasOwn(fields, key) || typeof value !== 'string') continue;
+    const label = value.trim().slice(0, MAX_LABEL_LENGTH);
+    if (label) result[key] = label;
+  }
+  return Object.keys(result).length > 0 ? { ...result } : undefined;
 }
 
 function cleanText(key: string, value: unknown): string {

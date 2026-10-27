@@ -246,3 +246,46 @@ describe('удаление заявок', () => {
     await http.delete('/projects/no-such-project/requests/nope', admin).expect(404);
   });
 });
+
+describe('подписи полей', () => {
+  const detailOf = async (form: string) => {
+    const list = (await http.get(listUrl(PROJECT, `?form=${form}`), owner).expect(200)).body as FormSubmissionList;
+    return (await http.get(`/projects/${PROJECT}/requests/${list.items[0].id}`, owner).expect(200))
+      .body as FormSubmissionDetail;
+  };
+
+  it('сохраняются и отдаются в просмотре заявки; в списке их нет', async () => {
+    await submit(
+      { name: 'Мария', audience: 'Да', promotion: ['Блог', 'СМИ'] },
+      {
+        form: 'labelled',
+        labels: { name: 'ФИО', audience: 'Есть ли возможность привлечь 50 участников?', promotion: 'Как продвигаете?' },
+      },
+    ).expect(201);
+    const detail = await detailOf('labelled');
+    expect(detail.labels).toEqual({
+      name: 'ФИО',
+      audience: 'Есть ли возможность привлечь 50 участников?',
+      promotion: 'Как продвигаете?',
+    });
+    const list = (await http.get(listUrl(PROJECT, '?form=labelled'), owner).expect(200)).body as FormSubmissionList;
+    expect(list.items[0]).not.toHaveProperty('labels');
+  });
+
+  it('без подписей (старый сайт): пустой объект', async () => {
+    await submit({ name: 'Без подписей' }, { form: 'unlabelled' }).expect(201);
+    expect((await detailOf('unlabelled')).labels).toEqual({});
+  });
+
+  it('кривые подписи не теряют заявку: лишние и неверные отбрасываются', async () => {
+    await submit(
+      { name: 'Кривые' },
+      { form: 'badlabels', labels: { name: ' ФИО ', ghost: 'Чужое поле', other: 5 } },
+    ).expect(201);
+    expect((await detailOf('badlabels')).labels).toEqual({ name: 'ФИО' });
+  });
+
+  it('подписи не строкой-объектом: 400, как и другие неверные формы тела', async () => {
+    await http.post(publicUrl()).send({ form: 'f', fields: { a: 'b' }, labels: 'x' }).expect(400);
+  });
+});

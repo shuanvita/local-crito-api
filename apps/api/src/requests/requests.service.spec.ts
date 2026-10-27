@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { normalizeFields } from './requests.service.js';
+import { normalizeFields, normalizeLabels } from './requests.service.js';
 
 describe('normalizeFields', () => {
   it('обрезает пробелы у строк и в списках', () => {
@@ -26,5 +26,34 @@ describe('normalizeFields', () => {
     const result = normalizeFields(input);
     expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
     expect(Object.keys(result)).toEqual(['__proto__', 'name']);
+  });
+});
+
+describe('normalizeLabels', () => {
+  const fields = { name: 'Иван', city: 'Казань' };
+
+  it('берёт строки для полей заявки, обрезает пробелы', () => {
+    expect(normalizeLabels({ name: ' ФИО ', city: 'Город' }, fields)).toEqual({ name: 'ФИО', city: 'Город' });
+  });
+
+  it('отбрасывает подписи к чужим ключам, пустые и не строки, а не отвергает заявку', () => {
+    expect(normalizeLabels({ name: 'ФИО', ghost: 'Чужое', city: '  ', other: 5 }, fields)).toEqual({ name: 'ФИО' });
+  });
+
+  it('нет подходящих подписей или неверная форма: undefined', () => {
+    for (const bad of [undefined, null, 'x', ['a'], {}, { ghost: 'x' }, { name: 1 }]) {
+      expect(normalizeLabels(bad, fields)).toBeUndefined();
+    }
+  });
+
+  it('длинную подпись обрезает до лимита', () => {
+    expect(normalizeLabels({ name: 'я'.repeat(600) }, fields)?.name).toHaveLength(500);
+  });
+
+  it('ключ __proto__ не меняет прототип и берётся только если есть среди полей', () => {
+    const input = JSON.parse('{"__proto__": "x", "name": "a"}') as unknown;
+    expect(normalizeLabels(input, fields)).toEqual({ name: 'a' });
+    const withProto = normalizeLabels(input, JSON.parse('{"__proto__": "v"}') as Record<string, string>);
+    expect(Object.getPrototypeOf(withProto)).toBe(Object.prototype);
   });
 });

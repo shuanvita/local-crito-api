@@ -18,6 +18,11 @@ export interface FormSubmissionItem {
 export interface FormSubmissionDetail extends FormSubmissionItem {
   /** Все поля формы в порядке отправки. */
   fields: Record<string, SubmissionFieldValue>
+  /**
+   * Вопросы формы по ключам полей (так, как их видел заявитель). Без подписи, например у заявок,
+   * присланных до появления подписей, ключа в объекте нет: тогда админка показывает сам ключ.
+   */
+  labels: Record<string, string>
 }
 
 /** Страница списка заявок с фильтрами и курсором. */
@@ -35,6 +40,8 @@ export interface FormSubmissionList {
 export interface SubmitFormRequest {
   form: string
   fields: Record<string, SubmissionFieldValue>
+  /** Необязательные подписи полей: ключ поля -> вопрос формы. Подписи к несуществующим полям отбрасываются. */
+  labels?: Record<string, string>
   pageUrl?: string
   /** Поле-ловушка для ботов: у людей оно пустое и скрыто. */
   website?: string

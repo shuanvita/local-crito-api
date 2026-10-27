@@ -176,6 +176,15 @@ async function openRow(_event: Event, row: { original: FormSubmissionItem }) {
 
 const fieldValue = (value: string | string[]) => Array.isArray(value) ? value.join(', ') : value
 
+// Поля заявки в порядке отправки: вопрос (если сайт прислал), ответ и признак «не заполнено».
+const entries = computed(() => Object.entries(detail.value?.fields ?? {}).map(([key, raw]) => ({
+  key,
+  label: detail.value?.labels?.[key],
+  value: fieldValue(raw)
+})))
+const answered = computed(() => entries.value.filter(entry => entry.value.trim() !== ''))
+const empty = computed(() => entries.value.filter(entry => entry.value.trim() === ''))
+
 // --- удаление (только администратор; сами права всё равно проверяет API) ---
 const { data: me } = await useMe()
 const canDelete = computed(() => me.value?.isSuperAdmin === true)
@@ -296,13 +305,25 @@ async function confirmDelete() {
               </div>
             </dl>
             <USeparator />
-            <dl class="space-y-3">
-              <div v-for="(value, key) in detail.fields" :key="key">
-                <dt class="font-mono text-xs text-muted">{{ key }}</dt>
+            <dl class="space-y-4">
+              <div v-for="entry in answered" :key="entry.key">
+                <!-- Вопрос формы как его видел заявитель; без подписи (старые заявки) остаётся сам ключ. -->
+                <dt v-if="entry.label" class="text-sm font-medium text-highlighted">{{ entry.label }}</dt>
+                <dt v-else class="font-mono text-xs text-muted">{{ entry.key }}</dt>
                 <!-- Значения выводятся как текст: HTML из заявки не интерпретируется. -->
-                <dd class="whitespace-pre-wrap break-words text-sm">{{ fieldValue(value) || '—' }}</dd>
+                <dd class="mt-0.5 whitespace-pre-wrap break-words text-sm">{{ entry.value }}</dd>
+                <p v-if="entry.label" class="mt-0.5 font-mono text-xs text-dimmed">{{ entry.key }}</p>
               </div>
             </dl>
+            <!-- Пустые необязательные поля (например «Другое») не должны разбавлять заявку. -->
+            <details v-if="empty.length" class="text-sm">
+              <summary class="cursor-pointer text-muted">Не заполнено ({{ empty.length }})</summary>
+              <ul class="mt-2 space-y-1 text-muted">
+                <li v-for="entry in empty" :key="entry.key" class="break-words">
+                  {{ entry.label || entry.key }}
+                </li>
+              </ul>
+            </details>
           </div>
         </template>
 

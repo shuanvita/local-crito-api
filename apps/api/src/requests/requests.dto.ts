@@ -14,6 +14,11 @@ export class SubmitFormDto implements SubmitFormRequest {
   @IsObject()
   fields: Record<string, SubmissionFieldValue>;
 
+  /** Подписи полей. Форму значений и лимиты проверяет сервис: сбой подписи не должен терять заявку. */
+  @IsOptional()
+  @IsObject()
+  labels?: Record<string, string>;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

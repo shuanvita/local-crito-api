@@ -169,6 +169,8 @@ model FormSubmission {
   pageUrl    String?
   /// Все поля формы как отправлены (строки и списки строк).
   fields     Json
+  /// Подписи полей (ключ -> вопрос формы), которые прислал сайт; у старых заявок и у форм без подписей `null`.
+  labels     Json?
   /// Все значения одной строкой в нижнем регистре: поиск по заявкам.
   searchText String   @db.Text
   createdAt  DateTime @default(now())
