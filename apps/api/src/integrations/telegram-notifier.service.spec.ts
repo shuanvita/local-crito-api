@@ -54,7 +54,7 @@ describe('TelegramNotifierService', () => {
       [TOKEN, '-100'],
       [TOKEN, '200'],
     ]);
-    expect(sendMessage.mock.calls[0][2]).toContain('Иван');
+    expect(sendMessage.mock.calls[0][2]).toContain('Поступила новая заявка с сайта');
     expect(update.mock.calls[0][0].data).toMatchObject({ lastErrorAt: null, lastError: null });
     expect(update.mock.calls[0][0].data.lastSuccessAt).toBeInstanceOf(Date);
   });

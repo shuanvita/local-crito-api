@@ -256,12 +256,10 @@ describe('уведомления о заявках', () => {
     expect(sent.map((message) => message.chatId).sort()).toEqual(['-1001', '@rucode_news']);
     expect(sent.every((message) => message.token === TOKEN)).toBe(true);
     const text = sent[0].text;
-    expect(text).toContain('<b>Новая заявка</b>: Участие');
-    expect(text).toContain('Проект: Integrations');
-    expect(text).toContain('Иван &lt;b&gt;Петров&lt;/b&gt;');
-    expect(text).toContain('<b>events:</b> a, b');
+    expect(text).toContain('<b>Поступила новая заявка с сайта</b>');
+    expect(text).not.toContain('Иван');
     expect(text).toContain('Страница: https://rucode.example/start');
-    expect(text).toMatch(/<a href="http:\/\/api\.test\/intproj\/requests\?id=\w+">Открыть в админке<\/a>/);
+    expect(text).toMatch(/<a href="http:\/\/api\.test\/intproj\/requests\?id=\w+">Открыть заявку в админке<\/a>/);
     expect(sent[0]).toBeDefined();
     expect(telegram.calls.find((call) => call.method === 'sendMessage')?.body.parse_mode).toBe('HTML');
   });
@@ -304,7 +302,7 @@ describe('уведомления о заявках', () => {
       await http.post(`/public/${PROJECT}/requests`).send({ form, fields: { name: 'Необычный ключ' } }).expect(201);
       await settled();
       expect(telegram.sent()).toHaveLength(2);
-      expect(telegram.sent()[0].text).toContain(`<b>Новая заявка</b>: ${form}`);
+      expect(telegram.sent()[0].text).toContain('Поступила новая заявка с сайта');
     },
   );
 
@@ -323,7 +321,7 @@ describe('уведомления о заявках', () => {
     await http.post(`/public/${PROJECT}/requests`).send({ form: 'consortium', fields: { name: 'Та форма' } }).expect(201);
     await settled();
     expect(telegram.sent()).toHaveLength(2);
-    expect(telegram.sent()[0].text).toContain('<b>Новая заявка</b>: consortium');
+    expect(telegram.sent()[0].text).toContain('Поступила новая заявка с сайта');
     await http.put(tg(), admin).send({ forms: [] }).expect(200);
   });
 

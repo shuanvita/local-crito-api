@@ -82,7 +82,6 @@ export class TelegramNotifierService implements OnApplicationShutdown {
 
       const token = this.secrets.decrypt(row.secret, TELEGRAM_SECRET_CONTEXT);
       const html = buildSubmissionMessage(event, {
-        formLabels: config.formLabels,
         adminBaseUrl: this.config.get<string>('PUBLIC_BASE_URL')?.trim() || null,
       });
       await this.deliver(row.id, token, config.chats, html);
