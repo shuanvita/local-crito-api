@@ -111,7 +111,9 @@ describe('авторизация: всё закрыто по умолчанию'
 
   it('публичное чтение страниц и файлов не требует входа', async () => {
     await http.get('/public/rucode/pages/index').expect(404);
-    await http.get('/media/rucode/nothing.png').expect(404);
+    // Даже у 404 файл должен быть доступен другим origin, иначе браузер скрывает статус за NotSameOrigin.
+    const missing = await http.get('/media/rucode/nothing.png').expect(404);
+    expect(missing.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 
   it('служебный ADMIN_TOKEN открывает админские методы как суперадмина', async () => {

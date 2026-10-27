@@ -16,5 +16,12 @@ export function configureApp(app: INestApplication): void {
   // а файлы SVG получают свою политику в MediaPublicController.
   app.use(helmet({ contentSecurityPolicy: false }));
 
+  // Файлы подключаются с сайтов и из админки на других origin. helmet ставит same-origin на все ответы, в том числе
+  // на ошибки: без этого 404 картинки браузер показывает как ERR_BLOCKED_BY_RESPONSE.NotSameOrigin и скрывает причину.
+  app.use('/media', (_req: unknown, res: { set(name: string, value: string): void }, next: () => void) => {
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  });
+
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 }
