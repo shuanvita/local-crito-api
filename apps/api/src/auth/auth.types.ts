@@ -10,6 +10,8 @@ export interface Principal {
   name?: string;
   isSuperAdmin: boolean;
   grants: Grant[];
+  /** Id серверной сессии (`Session.id`); есть только у входа по паролю, нужен для выхода и смены пароля. */
+  sessionId?: string;
 }
 
 export type AuthedRequest = Request & { principal: Principal };

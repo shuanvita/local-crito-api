@@ -11,6 +11,12 @@ const logoSrc = `${assetBase}/logo.png`
 const logoWhiteSrc = `${assetBase}/logo-white.png`
 
 const close = () => { open.value = false }
+
+const passwordOpen = ref(false)
+const userMenu = [[
+  { label: 'Сменить пароль', icon: 'i-lucide-key-round', onSelect: () => { passwordOpen.value = true } },
+  { label: 'Выйти', icon: 'i-lucide-log-out', onSelect: () => logout() }
+]]
 // Настройки проекта видит только администратор админки (права всё равно проверяет API).
 const { data: me } = useMe()
 // Заявки содержат персональные данные: пункт нужен только при доступе ко всему проекту.
@@ -37,7 +43,15 @@ const links = computed<NavigationMenuItem[][]>(() => [
         to: `/dictionaries/${dictionary.key}`,
         onSelect: close
       }))
-    }
+    },
+    ...(me.value?.isSuperAdmin
+      ? [{
+          label: 'Доступы',
+          icon: 'i-lucide-users',
+          to: '/users',
+          onSelect: close
+        }]
+      : [])
   ],
   // Разделы проекта видны, только пока открыт проект.
   ...(slug.value
@@ -125,27 +139,31 @@ const links = computed<NavigationMenuItem[][]>(() => [
       <template #footer="{ collapsed }">
         <UColorModeButton v-if="collapsed" />
         <div v-else class="flex w-full items-center justify-between gap-2">
-          <div class="flex min-w-0 items-center gap-2">
-            <UAvatar
-              :text="(me?.name ?? me?.email ?? 'C').charAt(0).toUpperCase()"
-              size="sm"
-              class="shrink-0"
-              aria-hidden="true"
-            />
-            <div class="min-w-0 leading-tight">
-              <p class="truncate text-sm font-medium text-highlighted">
-                {{ me?.name ?? me?.email ?? 'Crito CMS' }}
-              </p>
-              <p v-if="me" class="truncate text-xs text-muted">
-                {{ me.isSuperAdmin ? 'Администратор' : 'Редактор' }}
-              </p>
-            </div>
-          </div>
+          <UDropdownMenu :items="userMenu" :content="{ side: 'top', align: 'start' }" class="min-w-0">
+            <UButton color="neutral" variant="ghost" class="min-w-0 flex-1 justify-start gap-2 px-1" aria-label="Меню пользователя">
+              <UAvatar
+                :text="(me?.name ?? me?.email ?? 'C').charAt(0).toUpperCase()"
+                size="sm"
+                class="shrink-0"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 text-left leading-tight">
+                <p class="truncate text-sm font-medium text-highlighted">
+                  {{ me?.name ?? me?.email ?? 'Crito CMS' }}
+                </p>
+                <p v-if="me" class="truncate text-xs text-muted">
+                  {{ me.isSuperAdmin ? 'Администратор' : 'Редактор' }}
+                </p>
+              </div>
+            </UButton>
+          </UDropdownMenu>
           <UColorModeButton />
         </div>
       </template>
     </UDashboardSidebar>
 
     <slot />
+
+    <ChangePasswordModal v-model:open="passwordOpen" />
   </UDashboardGroup>
 </template>

@@ -10,6 +10,6 @@ import { CurrentPrincipal } from './current-principal.decorator.js';
 export class MeController {
   @Get()
   me(@CurrentPrincipal() principal: Principal): CurrentUser {
-    return { email: principal.email, name: principal.name ?? null, isSuperAdmin: principal.isSuperAdmin };
+    return { id: principal.userId, email: principal.email, name: principal.name ?? null, isSuperAdmin: principal.isSuperAdmin };
   }
 }

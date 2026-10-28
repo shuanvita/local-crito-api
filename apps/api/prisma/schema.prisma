@@ -35,6 +35,7 @@ model Project {
   media        Media[]
   submissions  FormSubmission[]
   integrations ProjectIntegration[]
+  grants       UserGrant[]
 }
 
 /// Подключённая к проекту внешняя интеграция (сейчас только Telegram-уведомления о заявках).
@@ -60,20 +61,67 @@ model ProjectIntegration {
   @@unique([projectId, type])
 }
 
-/// Зеркало пользователя LMS. Паролей и ролей в CMS нет: права приходят из LMS.
+/// Пользователь CMS. `externalId`: `local:<cuid>` у заведённых здесь, позже `lms:<id>` у пришедших из LMS.
+/// Пароль и `loginEmail` нужны только временному локальному входу (до LMS); ролей нет, права в `UserGrant`.
 model User {
-  id         String   @id @default(cuid())
-  externalId String   @unique
-  email      String
-  name       String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  externalId   String   @unique
+  email        String
+  name         String?
+  /// Почта для входа по паролю, в нижнем регистре; null у служебных пользователей (dev, ADMIN_TOKEN, CLI).
+  loginEmail   String?  @unique
+  /// Хэш пароля (scrypt, параметры внутри строки); null: войти по паролю нельзя.
+  passwordHash String?
+  isSuperAdmin Boolean  @default(false)
+  /// Заблокированный не входит, а его сессии перестают действовать сразу.
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   updatedPages Page[]         @relation("PageUpdatedBy")
   deletedPages Page[]         @relation("PageDeletedBy")
   draftPages   Page[]         @relation("PageDraftBy")
   revisions    PageRevision[]
   media        Media[]
+  grants       UserGrant[]
+  sessions     Session[]
+}
+
+/// Право пользователя на проект: весь проект (`scope=project`) или отдельные страницы (`scope=pages`).
+/// `source` отделяет локальные права от пришедших из LMS: при синхронизации с LMS заменяются только `lms`.
+model UserGrant {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  scope     String
+  /// Для `scope=pages`: id страниц; для `project` пусто.
+  pageIds   String[]
+  source    String   @default("local")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, source])
+  @@index([projectId])
+}
+
+/// Серверная сессия входа. В БД только SHA-256 токена: утечка БД не даёт войти.
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  /// Безусловный предел жизни (создание + 7 дней).
+  expiresAt  DateTime
+  /// Последняя активность: простой дольше 8 часов обрывает сессию. Пишется не чаще раза в минуту.
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// Страница проекта. `blocks`/`meta`/... это опубликованное содержимое, его читает сайт; правки до публикации

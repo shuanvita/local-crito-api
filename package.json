@@ -18,6 +18,7 @@
     "admin": "npm run dev -w @crito/admin",
     "export:rucode": "node scripts/rucode/export.mjs",
     "create-project": "node apps/api/dist/cli/create-project.main.js",
+    "user:create": "node apps/api/dist/cli/create-user.main.js",
     "import:pages": "node apps/api/dist/cli/import-pages.main.js",
     "import:regions": "node apps/api/dist/cli/import-regions.main.js",
     "test": "npm run test -w @crito/api && npm run test -w @crito/admin",

@@ -11,9 +11,12 @@ useHead({ title: 'Нет доступа' })
         Нет доступа
       </h1>
       <p class="mt-2 text-muted">
-        Эта админка открывается из админки LMS. Войдите в LMS и перейдите в раздел
-        управления сайтами.
+        У вашей учётной записи нет прав на этот раздел. Доступ выдаёт администратор.
       </p>
+      <div class="mt-6 flex justify-center gap-2">
+        <UButton label="На главную" to="/" color="neutral" variant="subtle" />
+        <UButton label="Выйти" color="neutral" variant="ghost" @click="logout()" />
+      </div>
     </div>
   </div>
 </template>

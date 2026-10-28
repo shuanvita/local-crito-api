@@ -14,6 +14,7 @@ import type {
   FormSubmissionDetail,
   FormSubmissionList,
   IntegrationSummary,
+  LoginResponse,
   MediaItem,
   PageDetail,
   PageListItem,
@@ -27,8 +28,11 @@ import type {
   TelegramIntegration,
   TelegramTestResponse,
   TrashedPageItem,
+  UserAccount,
 } from '@crito/contract';
+import type { AuthController } from '../src/auth/auth.controller.js';
 import type { MeController } from '../src/auth/me.controller.js';
+import type { UsersService } from '../src/auth/users.service.js';
 import type { DictionariesService } from '../src/dictionaries/dictionaries.service.js';
 import type { IntegrationsService } from '../src/integrations/integrations.service.js';
 import type { ManifestService } from '../src/manifest/manifest.service.js';
@@ -88,6 +92,10 @@ export type ContractChecks = [
   Expect<Extends<Wire<ReturnType<IntegrationsService['discoverTelegramChats']>>, TelegramDiscoverResponse>>,
   // текущий пользователь
   Expect<Extends<ReturnType<MeController['me']>, CurrentUser>>,
+  // вход и доступы (даты как строки уже в ответе сервиса)
+  Expect<Extends<Awaited<ReturnType<AuthController['login']>>, LoginResponse>>,
+  Expect<Extends<Awaited<ReturnType<UsersService['list']>>, UserAccount[]>>,
+  Expect<Extends<Awaited<ReturnType<UsersService['setGrants']>>, UserAccount>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)
   Expect<Extends<Awaited<ReturnType<ManifestService['get']>>, BlockManifest | null>>,
 ];

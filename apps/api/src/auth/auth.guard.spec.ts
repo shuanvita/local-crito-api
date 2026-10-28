@@ -4,6 +4,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { Reflector } from '@nestjs/core';
 import type { PrismaService } from '../common/prisma.service.js';
 import { AuthGuard } from './auth.guard.js';
+import type { LocalAuthService } from './local-auth.service.js';
 import type { SessionService } from './session.service.js';
 
 const ADMIN_TOKEN = 'a-long-admin-token-for-unit-tests-0123456789';
@@ -11,10 +12,12 @@ const ADMIN_TOKEN = 'a-long-admin-token-for-unit-tests-0123456789';
 function setup(adminToken: string | undefined) {
   const upsert = vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@localhost', name: 'Администратор' });
   const verify = vi.fn().mockResolvedValue(null);
+  const localVerify = vi.fn().mockResolvedValue(null);
   const guard = new AuthGuard(
     { getAllAndOverride: () => false } as unknown as Reflector,
     { verify } as unknown as SessionService,
     { user: { upsert } } as unknown as PrismaService,
+    { verify: localVerify } as unknown as LocalAuthService,
     { get: (name: string) => (name === 'ADMIN_TOKEN' ? adminToken : undefined) } as unknown as ConfigService,
   );
   const run = (authorization?: string) => {
@@ -28,8 +31,34 @@ function setup(adminToken: string | undefined) {
     } as unknown as ExecutionContext;
     return { result: guard.canActivate(context), request };
   };
-  return { run, upsert, verify };
+  return { run, upsert, verify, localVerify };
 }
+
+describe('AuthGuard: серверные сессии входа по паролю', () => {
+  const principal = { userId: 'u2', email: 'a@b.ru', isSuperAdmin: false, grants: [], sessionId: 's1' };
+
+  it('токен с префиксом сессии проверяется только в LocalAuthService', async () => {
+    const { run, verify, localVerify } = setup(ADMIN_TOKEN);
+    localVerify.mockResolvedValue(principal);
+    const { result, request } = run('Bearer crs_abc');
+    await expect(result).resolves.toBe(true);
+    expect(request.principal).toBe(principal);
+    expect(localVerify).toHaveBeenCalledWith('crs_abc');
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('неизвестная или просроченная сессия даёт 401', async () => {
+    const { run } = setup(ADMIN_TOKEN);
+    await expect(run('Bearer crs_unknown').result).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('токен без префикса идёт в проверку JWT, а не в таблицу сессий', async () => {
+    const { run, verify, localVerify } = setup(undefined);
+    await expect(run('Bearer eyJ.x.y').result).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(verify).toHaveBeenCalledWith('eyJ.x.y');
+    expect(localVerify).not.toHaveBeenCalled();
+  });
+});
 
 describe('AuthGuard: служебный ADMIN_TOKEN', () => {
   it('верный токен даёт суперадмина и не обращается к проверке сессий', async () => {

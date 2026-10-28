@@ -10,6 +10,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../common/prisma.service.js';
 import { isDevelopment } from '../config/runtime.js';
 import { IS_PUBLIC } from './public.decorator.js';
+import { LocalAuthService, SESSION_TOKEN_PREFIX } from './local-auth.service.js';
 import { SessionService } from './session.service.js';
 import type { AuthedRequest, Principal } from './auth.types.js';
 
@@ -28,6 +29,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly sessions: SessionService,
     private readonly prisma: PrismaService,
+    private readonly localAuth: LocalAuthService,
     config: ConfigService,
   ) {
     this.devBypass = config.get<string>('AUTH_DEV_BYPASS') === 'true';
@@ -61,7 +63,12 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
-    const principal = token ? await this.sessions.verify(token) : null;
+    // Серверная сессия входа по паролю (токен с префиксом); иначе короткий JWT.
+    const principal = !token
+      ? null
+      : token.startsWith(SESSION_TOKEN_PREFIX)
+        ? await this.localAuth.verify(token)
+        : await this.sessions.verify(token);
     if (!principal) throw new UnauthorizedException();
 
     request.principal = principal;

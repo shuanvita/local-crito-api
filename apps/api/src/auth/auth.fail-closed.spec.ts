@@ -4,6 +4,7 @@ import { MediaService } from '../media/media.service.js';
 import type { PrismaService } from '../common/prisma.service.js';
 import { SecretBox } from '../common/secret-box.js';
 import { AuthGuard } from './auth.guard.js';
+import type { LocalAuthService } from './local-auth.service.js';
 import { SessionService } from './session.service.js';
 
 const config = (values: Record<string, string | undefined>) =>
@@ -29,7 +30,7 @@ describe('закрытость по умолчанию: NODE_ENV не задан
       expect(() => new SecretBox(config({}))).toThrow('SECRETS_KEY');
       expect(() => new MediaService({} as PrismaService, {} as never, {} as never, config({}))).toThrow('PUBLIC_BASE_URL');
       expect(
-        () => new AuthGuard({} as Reflector, {} as SessionService, {} as PrismaService, config({ AUTH_DEV_BYPASS: 'true' })),
+        () => new AuthGuard({} as Reflector, {} as SessionService, {} as PrismaService, {} as LocalAuthService, config({ AUTH_DEV_BYPASS: 'true' })),
       ).toThrow('AUTH_DEV_BYPASS');
     });
   });
@@ -40,7 +41,7 @@ describe('закрытость по умолчанию: NODE_ENV не задан
       expect(() => new SecretBox(config({}))).not.toThrow();
       expect(() => new MediaService({} as PrismaService, {} as never, {} as never, config({}))).not.toThrow();
       expect(
-        () => new AuthGuard({} as Reflector, {} as SessionService, {} as PrismaService, config({ AUTH_DEV_BYPASS: 'true' })),
+        () => new AuthGuard({} as Reflector, {} as SessionService, {} as PrismaService, {} as LocalAuthService, config({ AUTH_DEV_BYPASS: 'true' })),
       ).not.toThrow();
     });
   });
