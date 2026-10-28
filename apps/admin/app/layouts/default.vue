@@ -10,6 +10,8 @@ const assetBase = config.app.baseURL.replace(/\/+$/, '')
 const logoSrc = `${assetBase}/logo.png`
 const logoWhiteSrc = `${assetBase}/logo-white.png`
 
+const lmsUrl = 'https://edu.mipt.ru/adm'
+
 const close = () => { open.value = false }
 
 const passwordOpen = ref(false)
@@ -25,13 +27,7 @@ const fullAccess = computed(() => projects.value.find(item => item.slug === slug
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
-    {
-      label: 'Проекты',
-      icon: 'i-lucide-layout-grid',
-      to: '/',
-      exact: true,
-      onSelect: close
-    },
+    // Список проектов открывает переключатель сверху (пункт «Все проекты») и логотип.
     {
       label: 'Справочники',
       icon: 'i-lucide-library',
@@ -109,16 +105,16 @@ const links = computed<NavigationMenuItem[][]>(() => [
       v-model:open="open"
       collapsible
       resizable
-      class="bg-elevated/25"
-      :ui="{ footer: 'lg:border-t lg:border-default' }"
+      class="bg-elevated"
+      :ui="{ header: 'lg:border-b lg:border-default', footer: 'lg:border-t lg:border-default' }"
     >
       <template #header="{ collapsed }">
         <!-- Шапка сайдбара фиксированной высоты: в неё помещается только логотип. -->
         <!-- В свёрнутом сайдбаре (64px) широкий логотип не помещается и сжимается: прячем его. -->
-        <NuxtLink v-if="!collapsed" to="/" class="block" aria-label="Crito CMS">
+        <NuxtLink v-if="!collapsed" to="/" class="block px-1 py-1" aria-label="Crito CMS">
           <!-- Тёмный текст логотипа нечитаем на тёмной теме: в ней показываем белый вариант. -->
-          <img :src="logoSrc" alt="ЦРИТО" class="h-9 w-auto dark:hidden">
-          <img :src="logoWhiteSrc" alt="ЦРИТО" class="hidden h-9 w-auto dark:block">
+          <img :src="logoSrc" alt="ЦРИТО" class="h-12 w-auto dark:hidden">
+          <img :src="logoWhiteSrc" alt="ЦРИТО" class="hidden h-12 w-auto dark:block">
         </NuxtLink>
       </template>
 
@@ -137,27 +133,52 @@ const links = computed<NavigationMenuItem[][]>(() => [
       </template>
 
       <template #footer="{ collapsed }">
-        <UColorModeButton v-if="collapsed" />
-        <div v-else class="flex w-full items-center justify-between gap-2">
-          <UDropdownMenu :items="userMenu" :content="{ side: 'top', align: 'start' }" class="min-w-0">
-            <UButton color="neutral" variant="ghost" class="min-w-0 flex-1 justify-start gap-2 px-1" aria-label="Меню пользователя">
-              <UAvatar
-                :text="(me?.name ?? me?.email ?? 'C').charAt(0).toUpperCase()"
-                size="sm"
-                class="shrink-0"
-                aria-hidden="true"
-              />
-              <div class="min-w-0 text-left leading-tight">
-                <p class="truncate text-sm font-medium text-highlighted">
-                  {{ me?.name ?? me?.email ?? 'Crito CMS' }}
-                </p>
-                <p v-if="me" class="truncate text-xs text-muted">
-                  {{ me.isSuperAdmin ? 'Администратор' : 'Редактор' }}
-                </p>
-              </div>
-            </UButton>
-          </UDropdownMenu>
-          <UColorModeButton />
+        <div class="flex w-full flex-col gap-2">
+          <!-- Внешний адрес: открываем в этой же вкладке, как возврат на предыдущий сервис. -->
+          <UTooltip v-if="collapsed" text="Вернуться в LMS">
+            <UButton
+              :to="lmsUrl"
+              target="_self"
+              icon="i-lucide-arrow-left"
+              color="neutral"
+              variant="solid"
+              square
+              class="self-center"
+              aria-label="Вернуться в LMS"
+            />
+          </UTooltip>
+          <UButton
+            v-else
+            :to="lmsUrl"
+            target="_self"
+            icon="i-lucide-arrow-left"
+            label="Вернуться в LMS"
+            color="neutral"
+            variant="solid"
+            block
+          />
+          <UColorModeButton v-if="collapsed" class="self-center" />
+          <div v-else class="flex w-full items-center justify-between gap-2">
+            <UDropdownMenu :items="userMenu" :content="{ side: 'top', align: 'start' }" class="min-w-0">
+              <UButton color="neutral" variant="ghost" class="min-w-0 flex-1 justify-start gap-2 px-1" aria-label="Меню пользователя">
+                <UAvatar
+                  :text="(me?.name ?? me?.email ?? 'C').charAt(0).toUpperCase()"
+                  size="sm"
+                  class="shrink-0"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 text-left leading-tight">
+                  <p class="truncate text-sm font-medium text-highlighted">
+                    {{ me?.name ?? me?.email ?? 'Crito CMS' }}
+                  </p>
+                  <p v-if="me" class="truncate text-xs text-muted">
+                    {{ me.isSuperAdmin ? 'Администратор' : 'Редактор' }}
+                  </p>
+                </div>
+              </UButton>
+            </UDropdownMenu>
+            <UColorModeButton />
+          </div>
         </div>
       </template>
     </UDashboardSidebar>
