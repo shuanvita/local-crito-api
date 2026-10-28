@@ -5,4 +5,6 @@ export interface CurrentUser {
   name: string | null
   /** Администратор админки: правит общие справочники, создаёт проекты, выдаёт доступы. */
   isSuperAdmin: boolean
+  /** Вошёл через LMS: пароль и выход в CMS не нужны, ими управляет LMS. */
+  viaLms: boolean
 }

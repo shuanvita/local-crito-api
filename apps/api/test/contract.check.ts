@@ -14,6 +14,7 @@ import type {
   FormSubmissionDetail,
   FormSubmissionList,
   IntegrationSummary,
+  LmsAccess,
   LoginResponse,
   MediaItem,
   PageDetail,
@@ -31,6 +32,7 @@ import type {
   UserAccount,
 } from '@crito/contract';
 import type { AuthController } from '../src/auth/auth.controller.js';
+import type { LmsAccessService } from '../src/auth/lms-access.service.js';
 import type { MeController } from '../src/auth/me.controller.js';
 import type { UsersService } from '../src/auth/users.service.js';
 import type { DictionariesService } from '../src/dictionaries/dictionaries.service.js';
@@ -96,6 +98,9 @@ export type ContractChecks = [
   Expect<Extends<Awaited<ReturnType<AuthController['login']>>, LoginResponse>>,
   Expect<Extends<Awaited<ReturnType<UsersService['list']>>, UserAccount[]>>,
   Expect<Extends<Awaited<ReturnType<UsersService['setGrants']>>, UserAccount>>,
+  // доступ из LMS: группы и профили ролей проекта
+  Expect<Extends<Awaited<ReturnType<LmsAccessService['get']>>, LmsAccess>>,
+  Expect<Extends<Awaited<ReturnType<LmsAccessService['put']>>, LmsAccess>>,
   // манифест: дат нет, поэтому без Jsonify (он плохо переносит рекурсивную JsonSchema)
   Expect<Extends<Awaited<ReturnType<ManifestService['get']>>, BlockManifest | null>>,
 ];

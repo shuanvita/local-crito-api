@@ -221,6 +221,8 @@ onBeforeRouteLeave(() => !dirty.value || window.confirm('Есть несохра
           </UFormField>
         </UCard>
 
+        <LmsAccessCard :project="project" />
+
         <UCard>
           <template #header>
             <h2 class="font-medium text-highlighted">

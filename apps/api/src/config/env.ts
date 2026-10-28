@@ -3,6 +3,7 @@ import { isDevelopmentEnv } from './runtime.js';
 
 const MIN_SESSION_SECRET_LENGTH = 32;
 const MIN_ADMIN_TOKEN_LENGTH = 32;
+const MIN_LMS_SECRET_LENGTH = 32;
 
 /**
  * Проверка конфигурации при старте (подключена в `ConfigModule`). Приложение не запускается
@@ -19,6 +20,12 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   const adminToken = text('ADMIN_TOKEN');
   if (adminToken && (adminToken.length < MIN_ADMIN_TOKEN_LENGTH || adminToken === 'change-me')) {
     errors.push(`ADMIN_TOKEN должен быть не короче ${MIN_ADMIN_TOKEN_LENGTH} символов или не задан`);
+  }
+
+  // Секрет, которым nginx подтверждает заголовки пользователя из LMS. Слабый секрет хуже его отсутствия.
+  const lmsSecret = text('LMS_TRUST_SECRET');
+  if (lmsSecret && lmsSecret.length < MIN_LMS_SECRET_LENGTH) {
+    errors.push(`LMS_TRUST_SECRET должен быть не короче ${MIN_LMS_SECRET_LENGTH} символов или не задан`);
   }
 
   // Необязательный адрес Bot API (прокси или заглушка в тестах); в любом режиме должен быть адресом, а не мусором.

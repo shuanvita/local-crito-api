@@ -101,9 +101,9 @@ export class RequestsService {
     return { accepted: true };
   }
 
-  /** Заявки содержат персональные данные: только при доступе ко всему проекту. */
+  /** Заявки содержат персональные данные: при доступе ко всему проекту или по роли из LMS с правом на заявки. */
   async list(principal: Principal, projectSlug: string, query: ListSubmissionsQuery) {
-    this.access.assertFullProjectAccess(principal, projectSlug);
+    this.access.assertCanViewRequests(principal, projectSlug);
     const project = await this.findProject(projectSlug);
 
     const created: Prisma.DateTimeFilter = {};
@@ -146,7 +146,7 @@ export class RequestsService {
   }
 
   async get(principal: Principal, projectSlug: string, id: string): Promise<StoredSubmissionDetail> {
-    this.access.assertFullProjectAccess(principal, projectSlug);
+    this.access.assertCanViewRequests(principal, projectSlug);
     const project = await this.findProject(projectSlug);
     // Фильтр по проекту обязателен: заявка другого проекта для этого проекта не существует.
     const row = await this.prisma.formSubmission.findFirst({

@@ -24,13 +24,15 @@ export const hashToken = (token: string) => createHash('sha256').update(token).d
 
 /** Права из БД в формат контракта. */
 export function toGrants(
-  rows: Array<{ scope: string; pageIds: string[]; project: { slug: string } }>,
+  rows: Array<{ scope: string; pageIds: string[]; requests?: boolean | null; project: { slug: string } }>,
 ): Grant[] {
-  return rows.map((row) =>
-    row.scope === 'pages'
-      ? { project: row.project.slug, scope: 'pages', pageIds: row.pageIds }
-      : { project: row.project.slug, scope: 'project' },
-  );
+  return rows.map((row) => {
+    // null: права по умолчанию (локальные); флаг есть только у прав из LMS.
+    const requests = row.requests === null || row.requests === undefined ? {} : { requests: row.requests };
+    return row.scope === 'pages'
+      ? { project: row.project.slug, scope: 'pages', pageIds: row.pageIds, ...requests }
+      : { project: row.project.slug, scope: 'project', ...requests };
+  });
 }
 
 @Injectable()

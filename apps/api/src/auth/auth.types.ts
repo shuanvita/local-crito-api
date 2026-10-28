@@ -12,6 +12,8 @@ export interface Principal {
   grants: Grant[];
   /** Id серверной сессии (`Session.id`); есть только у входа по паролю, нужен для выхода и смены пароля. */
   sessionId?: string;
+  /** Вход из LMS по заголовкам nginx: сессии и пароля в CMS нет. */
+  viaLms?: boolean;
 }
 
 export type AuthedRequest = Request & { principal: Principal };

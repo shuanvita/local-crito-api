@@ -63,6 +63,15 @@ describe('validateEnvironment', () => {
     }
   });
 
+  it('LMS_TRUST_SECRET необязателен, но короткий секрет отклоняется в любом режиме', () => {
+    expect(() => validateEnvironment({ ...good, LMS_TRUST_SECRET: 'a'.repeat(32) })).not.toThrow();
+    expect(() => validateEnvironment({ ...good, LMS_TRUST_SECRET: '' })).not.toThrow();
+    expect(() => validateEnvironment({ ...good, LMS_TRUST_SECRET: 'a'.repeat(31) })).toThrow('LMS_TRUST_SECRET');
+    expect(() =>
+      validateEnvironment({ NODE_ENV: 'development', DATABASE_URL: 'x', LMS_TRUST_SECRET: 'short' }),
+    ).toThrow('LMS_TRUST_SECRET');
+  });
+
   it('TELEGRAM_API_BASE необязателен, но должен быть адресом', () => {
     expect(() => validateEnvironment({ ...good, TELEGRAM_API_BASE: '' })).not.toThrow();
     expect(() => validateEnvironment({ ...good, TELEGRAM_API_BASE: 'https://tg-proxy.example.ru' })).not.toThrow();

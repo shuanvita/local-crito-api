@@ -4,6 +4,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { Reflector } from '@nestjs/core';
 import type { PrismaService } from '../common/prisma.service.js';
 import { AuthGuard } from './auth.guard.js';
+import type { LmsAuthService } from './lms-auth.service.js';
 import type { LocalAuthService } from './local-auth.service.js';
 import type { SessionService } from './session.service.js';
 
@@ -13,16 +14,21 @@ function setup(adminToken: string | undefined) {
   const upsert = vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@localhost', name: 'Администратор' });
   const verify = vi.fn().mockResolvedValue(null);
   const localVerify = vi.fn().mockResolvedValue(null);
+  const lmsAuthenticate = vi.fn().mockResolvedValue(null);
   const guard = new AuthGuard(
     { getAllAndOverride: () => false } as unknown as Reflector,
     { verify } as unknown as SessionService,
     { user: { upsert } } as unknown as PrismaService,
     { verify: localVerify } as unknown as LocalAuthService,
+    {
+      carriesLmsHeaders: (headers: Record<string, unknown>) => headers['x-cms-secret'] !== undefined,
+      authenticate: lmsAuthenticate,
+    } as unknown as LmsAuthService,
     { get: (name: string) => (name === 'ADMIN_TOKEN' ? adminToken : undefined) } as unknown as ConfigService,
   );
-  const run = (authorization?: string) => {
+  const run = (authorization?: string, extraHeaders: Record<string, string> = {}) => {
     const request: { headers: Record<string, string>; principal?: { isSuperAdmin: boolean } } = {
-      headers: authorization ? { authorization } : {},
+      headers: { ...(authorization ? { authorization } : {}), ...extraHeaders },
     };
     const context = {
       getHandler: () => undefined,
@@ -31,8 +37,37 @@ function setup(adminToken: string | undefined) {
     } as unknown as ExecutionContext;
     return { result: guard.canActivate(context), request };
   };
-  return { run, upsert, verify, localVerify };
+  return { run, upsert, verify, localVerify, lmsAuthenticate };
 }
+
+describe('AuthGuard: вход из LMS по заголовкам', () => {
+  const lmsPrincipal = { userId: 'u3', email: 'a@b.ru', isSuperAdmin: false, grants: [] };
+
+  it('запрос с секретом проверяется только в LmsAuthService', async () => {
+    const { run, lmsAuthenticate, verify, localVerify } = setup(ADMIN_TOKEN);
+    lmsAuthenticate.mockResolvedValue(lmsPrincipal);
+    const { result, request } = run(undefined, { 'x-cms-secret': 's' });
+    await expect(result).resolves.toBe(true);
+    expect(request.principal).toBe(lmsPrincipal);
+    expect(verify).not.toHaveBeenCalled();
+    expect(localVerify).not.toHaveBeenCalled();
+  });
+
+  it('неверный секрет даёт 401, даже если рядом валидный ADMIN_TOKEN', async () => {
+    const { run } = setup(ADMIN_TOKEN);
+    await expect(run(`Bearer ${ADMIN_TOKEN}`, { 'x-cms-secret': 'wrong' }).result).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('заголовки пользователя без секрета не дают входа', async () => {
+    const { run, lmsAuthenticate } = setup(ADMIN_TOKEN);
+    await expect(run(undefined, { 'x-cms-user-id': '1', 'x-cms-user-login': 'a@b.ru' }).result).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(lmsAuthenticate).not.toHaveBeenCalled();
+  });
+});
 
 describe('AuthGuard: серверные сессии входа по паролю', () => {
   const principal = { userId: 'u2', email: 'a@b.ru', isSuperAdmin: false, grants: [], sessionId: 's1' };

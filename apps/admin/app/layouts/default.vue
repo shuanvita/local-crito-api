@@ -14,16 +14,15 @@ const lmsUrl = 'https://edu.mipt.ru/adm'
 
 const close = () => { open.value = false }
 
-const passwordOpen = ref(false)
-const userMenu = [[
-  { label: 'Сменить пароль', icon: 'i-lucide-key-round', onSelect: () => { passwordOpen.value = true } },
-  { label: 'Выйти', icon: 'i-lucide-log-out', onSelect: () => logout() }
-]]
 // Настройки проекта видит только администратор админки (права всё равно проверяет API).
 const { data: me } = useMe()
-// Заявки содержат персональные данные: пункт нужен только при доступе ко всему проекту.
+// Пароли в CMS не меняются (это дело LMS). Вошедшему через LMS выход тоже не нужен: остаётся справка о том, кто вошёл.
+const userMenu = computed(() => me.value?.viaLms
+  ? [[{ label: me.value.email, type: 'label' as const }, { label: 'Вход через LMS', icon: 'i-lucide-badge-check', disabled: true }]]
+  : [[{ label: 'Выйти', icon: 'i-lucide-log-out', onSelect: () => logout() }]])
+// Заявки содержат персональные данные: пункт нужен только при доступе ко всему проекту или по роли из LMS.
 const { data: projects } = useProjects()
-const fullAccess = computed(() => projects.value.find(item => item.slug === slug.value)?.fullAccess === true)
+const requestsAccess = computed(() => projects.value.find(item => item.slug === slug.value)?.requestsAccess === true)
 
 const links = computed<NavigationMenuItem[][]>(() => [
   [
@@ -69,7 +68,7 @@ const links = computed<NavigationMenuItem[][]>(() => [
           to: `/${slug.value}/media`,
           onSelect: close
         },
-        ...(fullAccess.value
+        ...(requestsAccess.value
           ? [{
               label: 'Заявки',
               icon: 'i-lucide-inbox',
@@ -184,7 +183,5 @@ const links = computed<NavigationMenuItem[][]>(() => [
     </UDashboardSidebar>
 
     <slot />
-
-    <ChangePasswordModal v-model:open="passwordOpen" />
   </UDashboardGroup>
 </template>

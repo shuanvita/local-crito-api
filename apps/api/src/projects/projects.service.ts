@@ -118,6 +118,7 @@ export class ProjectsService {
     return {
       ...project,
       fullAccess: this.access.hasFullProjectAccess(principal, project.slug),
+      requestsAccess: this.access.canViewRequests(principal, project.slug),
       pagesCount: stats._count._all,
       lastChangedAt: stats._max.updatedAt,
     };

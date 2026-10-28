@@ -5,16 +5,15 @@
  * здесь быть не должно. Описывает формат JSON «по проводу»: даты приходят строками.
  */
 export type {
-  ChangePasswordRequest,
   CreateUserRequest,
   Grant,
   LoginRequest,
   LoginResponse,
-  ResetPasswordRequest,
   UpdateUserRequest,
   UserAccount,
   UserGrants,
 } from './auth.js'
+export type { LmsAccess, LmsRoleProfile } from './lms.js'
 export type { ContentBlock, ContentPage, ContentPageMeta, PageFooter, PageHeader } from './content.js'
 export type { CreateRegionRequest, PublicRegion, RegionItem, UpdateRegionRequest } from './dictionaries.js'
 export type { ApiErrorBody } from './errors.js'

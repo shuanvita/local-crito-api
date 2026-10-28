@@ -36,6 +36,36 @@ model Project {
   submissions  FormSubmission[]
   integrations ProjectIntegration[]
   grants       UserGrant[]
+  lmsGroups    ProjectLmsGroup[]
+  lmsRoles     ProjectLmsRole[]
+}
+
+/// Группа LMS, участники которой получают доступ к проекту. Состав группы правят только в LMS.
+model ProjectLmsGroup {
+  id        String  @id @default(cuid())
+  projectId String
+  /// Id группы из заголовка `X-Cms-User-Groups`.
+  groupId   String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, groupId])
+  @@index([groupId])
+}
+
+/// Профиль роли LMS в проекте: что может пользователь с такой ролью. Роль без профиля ничего не даёт.
+model ProjectLmsRole {
+  id        String   @id @default(cuid())
+  projectId String
+  /// Значение `X-Cms-User-Role` в нижнем регистре.
+  role      String
+  /// `project` (весь проект) или `pages` (только `pageIds`).
+  scope     String
+  pageIds   String[]
+  /// Раздел «Заявки»: содержит персональные данные, поэтому включается отдельно.
+  requests  Boolean  @default(false)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, role])
 }
 
 /// Подключённая к проекту внешняя интеграция (сейчас только Telegram-уведомления о заявках).
@@ -96,6 +126,8 @@ model UserGrant {
   scope     String
   /// Для `scope=pages`: id страниц; для `project` пусто.
   pageIds   String[]
+  /// Раздел «Заявки». null: по умолчанию (только при `scope=project`, как у локальных прав); иначе решает значение (права из LMS).
+  requests  Boolean?
   source    String   @default("local")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

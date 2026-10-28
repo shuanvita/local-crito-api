@@ -41,6 +41,24 @@ describe('AccessService', () => {
     expect(access.canEditPage(user, 'rucode', 'p1')).toBe(false);
   });
 
+  it('заявки: локальное право даёт их только при доступе ко всему проекту', () => {
+    expect(access.canViewRequests(principal({ grants: [{ project: 'rucode', scope: 'project' }] }), 'rucode')).toBe(true);
+    const pagesOnly = principal({ grants: [{ project: 'rucode', scope: 'pages', pageIds: ['p1'] }] });
+    expect(access.canViewRequests(pagesOnly, 'rucode')).toBe(false);
+    expect(() => access.assertCanViewRequests(pagesOnly, 'rucode')).toThrow();
+  });
+
+  it('заявки: явный флаг права из LMS решает независимо от области', () => {
+    const pagesWithRequests = principal({
+      grants: [{ project: 'rucode', scope: 'pages', pageIds: ['p1'], requests: true }],
+    });
+    expect(access.canViewRequests(pagesWithRequests, 'rucode')).toBe(true);
+    expect(access.canViewRequests(pagesWithRequests, 'other')).toBe(false);
+    const projectWithoutRequests = principal({ grants: [{ project: 'rucode', scope: 'project', requests: false }] });
+    expect(access.hasFullProjectAccess(projectWithoutRequests, 'rucode')).toBe(true);
+    expect(access.canViewRequests(projectWithoutRequests, 'rucode')).toBe(false);
+  });
+
   it('суперадмин имеет доступ ко всему', () => {
     const user = principal({ isSuperAdmin: true });
     expect(access.canEditPage(user, 'rucode', 'x')).toBe(true);

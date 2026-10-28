@@ -3,8 +3,9 @@
  * Редактирование включает публикацию; ролей нет. Выдаётся локально (до LMS) или приходит из LMS.
  */
 export type Grant =
-  | { project: string, scope: 'project' }
-  | { project: string, scope: 'pages', pageIds: string[] }
+  | { project: string, scope: 'project', requests?: boolean }
+  | { project: string, scope: 'pages', pageIds: string[], requests?: boolean }
+// `requests` (раздел «Заявки»): не задан: как раньше, только при доступе ко всему проекту; задан: решает он (права из LMS).
 
 /** `POST /auth/login`. */
 export interface LoginRequest {
@@ -17,12 +18,6 @@ export interface LoginResponse {
   token: string
   /** Когда сессия истечёт безусловно (ISO 8601). */
   expiresAt: string
-}
-
-/** `POST /auth/password`: смена своего пароля. Остальные сессии пользователя обрываются. */
-export interface ChangePasswordRequest {
-  currentPassword: string
-  newPassword: string
 }
 
 /** Пользователь в списке «Доступы». Пароль и его хэш наружу не отдаются. */
@@ -54,8 +49,4 @@ export interface UpdateUserRequest {
   name?: string
   isSuperAdmin?: boolean
   active?: boolean
-}
-
-export interface ResetPasswordRequest {
-  password: string
 }

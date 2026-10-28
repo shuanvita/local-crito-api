@@ -16,6 +16,17 @@ export class AccessService {
     );
   }
 
+  /**
+   * Заявки (персональные данные). Право без явного `requests` (локальное) даёт их только при доступе ко всему
+   * проекту, как раньше; право из LMS решает флаг профиля роли, в том числе для доступа к отдельным страницам.
+   */
+  canViewRequests(principal: Principal, project: string): boolean {
+    return (
+      principal.isSuperAdmin ||
+      principal.grants.some((grant) => grant.project === project && (grant.requests ?? grant.scope === 'project'))
+    );
+  }
+
   canEditPage(principal: Principal, project: string, pageId: string): boolean {
     if (this.hasFullProjectAccess(principal, project)) return true;
     return principal.grants.some(
@@ -38,6 +49,10 @@ export class AccessService {
 
   assertFullProjectAccess(principal: Principal, project: string) {
     if (!this.hasFullProjectAccess(principal, project)) throw new ForbiddenException();
+  }
+
+  assertCanViewRequests(principal: Principal, project: string) {
+    if (!this.canViewRequests(principal, project)) throw new ForbiddenException();
   }
 
   assertCanEditPage(principal: Principal, project: string, pageId: string) {
