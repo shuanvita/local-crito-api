@@ -140,18 +140,12 @@ describe('вход по паролю', () => {
     await login('limit-ip@e2e.test', PASSWORD, ip(251)).expect(200);
   });
 
-  it('смена пароля: нужен текущий, остальные сессии обрываются, текущая остаётся', async () => {
+  it('пароль через HTTP не меняется (это дело LMS): эндпоинта смены нет, пароль прежний', async () => {
     await createUser('change@e2e.test');
     const first = await token('change@e2e.test');
-    const second = await token('change@e2e.test');
-    await http.post('/auth/password', first).send({ currentPassword: 'nope-nope-nope', newPassword: 'brand-new-password' }).expect(401);
-    await http.post('/auth/password', first).send({ currentPassword: PASSWORD, newPassword: 'short' }).expect(400);
-    await http.post('/auth/password', first).send({ currentPassword: PASSWORD, newPassword: 'brand-new-password' }).expect(204);
-
-    await http.get('/me', first).expect(200);
-    await http.get('/me', second).expect(401);
-    await login('change@e2e.test', PASSWORD).expect(401);
-    await login('change@e2e.test', 'brand-new-password').expect(200);
+    await http.post('/auth/password', first).send({ currentPassword: PASSWORD, newPassword: 'brand-new-password' }).expect(404);
+    await login('change@e2e.test', PASSWORD).expect(200);
+    await login('change@e2e.test', 'brand-new-password').expect(401);
   });
 });
 
@@ -163,7 +157,6 @@ describe('страница «Доступы»', () => {
     await http.post('/users', value).send({ email: 'x@e2e.test', password: PASSWORD }).expect(403);
     await http.patch(`/users/${user.id}`, value).send({ isSuperAdmin: true }).expect(403);
     await http.put(`/users/${user.id}/grants`, value).send({ grants: [] }).expect(403);
-    await http.post(`/users/${user.id}/reset-password`, value).send({ password: PASSWORD }).expect(403);
     await http.get('/users').expect(401);
   });
 
@@ -233,13 +226,10 @@ describe('страница «Доступы»', () => {
     expect((list.body as UserAccount[]).find((item) => item.id === user.id)?.grants).toEqual([]);
   });
 
-  it('сброс пароля обрывает сессии пользователя', async () => {
+  it('администратор не сбрасывает пароли: эндпоинта нет', async () => {
     const user = await createUser('reset@e2e.test');
-    const value = await token('reset@e2e.test');
-    await http.post(`/users/${user.id}/reset-password`, admin).send({ password: 'another-password-1' }).expect(204);
-    await http.get('/me', value).expect(401);
-    await login('reset@e2e.test', PASSWORD).expect(401);
-    await login('reset@e2e.test', 'another-password-1').expect(200);
+    await http.post(`/users/${user.id}/reset-password`, admin).send({ password: 'another-password-1' }).expect(404);
+    await login('reset@e2e.test', PASSWORD).expect(200);
   });
 
   it('нельзя заблокировать себя и лишить прав последнего суперадмина', async () => {

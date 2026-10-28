@@ -1,9 +1,7 @@
 import type {
-  ChangePasswordRequest,
   CreateUserRequest,
   Grant,
   LoginRequest,
-  ResetPasswordRequest,
   UpdateUserRequest,
   UserGrants,
 } from '@crito/contract';
@@ -24,17 +22,6 @@ export class LoginDto implements LoginRequest {
   @MinLength(1)
   @MaxLength(MAX_PASSWORD_LENGTH)
   password: string;
-}
-
-export class ChangePasswordDto implements ChangePasswordRequest {
-  @IsString()
-  @MaxLength(MAX_PASSWORD_LENGTH)
-  currentPassword: string;
-
-  @IsString()
-  @MinLength(MIN_PASSWORD_LENGTH)
-  @MaxLength(MAX_PASSWORD_LENGTH)
-  newPassword: string;
 }
 
 export class CreateUserDto implements CreateUserRequest {
@@ -71,13 +58,6 @@ export class UpdateUserDto implements UpdateUserRequest {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
-}
-
-export class ResetPasswordDto implements ResetPasswordRequest {
-  @IsString()
-  @MinLength(MIN_PASSWORD_LENGTH)
-  @MaxLength(MAX_PASSWORD_LENGTH)
-  password: string;
 }
 
 /** Форму каждого права (проект, область, страницы) проверяет сервис: он же сверяет их с БД. */

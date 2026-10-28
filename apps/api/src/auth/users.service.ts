@@ -91,7 +91,10 @@ export class UsersService {
     return toAccount(updated);
   }
 
-  /** Новый пароль администратором; все сессии пользователя обрываются. */
+  /**
+   * Новый пароль; все сессии пользователя обрываются. Через HTTP пароли не меняют (это дело LMS),
+   * метод остался для консоли (`npm run user:create` для существующей почты): аварийный доступ владельца.
+   */
   async resetPassword(principal: Principal, id: string, password: string): Promise<void> {
     this.access.assertSuperAdmin(principal);
     await this.find(id);

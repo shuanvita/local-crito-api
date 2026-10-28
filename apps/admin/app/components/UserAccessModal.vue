@@ -87,25 +87,6 @@ async function save() {
     saving.value = false
   }
 }
-
-// --- сброс пароля ---
-const newPassword = ref('')
-const resetting = ref(false)
-
-async function resetPassword() {
-  const user = props.user
-  if (!user) return
-  resetting.value = true
-  try {
-    await api(`/users/${user.id}/reset-password`, { method: 'POST', body: { password: newPassword.value } })
-    toast.add({ title: 'Пароль заменён', description: 'Все сессии пользователя завершены.', color: 'success' })
-    newPassword.value = ''
-  } catch (error) {
-    toast.add({ title: 'Не удалось заменить пароль', description: apiErrorMessage(error), color: 'error' })
-  } finally {
-    resetting.value = false
-  }
-}
 </script>
 
 <template>
@@ -155,23 +136,6 @@ async function resetPassword() {
               multiple
               placeholder="Выберите страницы"
               class="w-full"
-            />
-          </div>
-        </section>
-
-        <section class="space-y-2">
-          <h3 class="text-sm font-medium text-highlighted">
-            Новый пароль
-          </h3>
-          <div class="flex gap-2">
-            <UInput v-model="newPassword" type="password" autocomplete="new-password" placeholder="Не короче 10 символов" class="flex-1" />
-            <UButton
-              label="Заменить"
-              color="neutral"
-              variant="subtle"
-              :disabled="newPassword.length < 10"
-              :loading="resetting"
-              @click="resetPassword"
             />
           </div>
         </section>

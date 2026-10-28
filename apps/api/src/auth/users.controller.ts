@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto, ResetPasswordDto, UpdateUserDto, UserGrantsDto } from './auth.dto.js';
+import { CreateUserDto, UpdateUserDto, UserGrantsDto } from './auth.dto.js';
 import type { Principal } from './auth.types.js';
 import { CurrentPrincipal } from './current-principal.decorator.js';
 import { UsersService } from './users.service.js';
@@ -25,12 +25,6 @@ export class UsersController {
   @Patch(':id')
   update(@CurrentPrincipal() principal: Principal, @Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.users.update(principal, id, dto);
-  }
-
-  @Post(':id/reset-password')
-  @HttpCode(204)
-  resetPassword(@CurrentPrincipal() principal: Principal, @Param('id') id: string, @Body() dto: ResetPasswordDto) {
-    return this.users.resetPassword(principal, id, dto.password);
   }
 
   @Put(':id/grants')
