@@ -84,7 +84,7 @@ export class LmsAuthService {
       userId: user.id,
       email: user.email,
       name: user.name ?? undefined,
-      isSuperAdmin: user.isSuperAdmin,
+      isSuperAdmin: user.isSuperAdmin || identity.role === '1',
       grants: toGrants(grants),
       viaLms: true,
     };

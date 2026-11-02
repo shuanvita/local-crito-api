@@ -225,7 +225,16 @@ describe('заголовки LMS', () => {
     expect((await ctx.prisma.user.findUniqueOrThrow({ where: { id: local.id } })).externalId).toBe('lms:140');
   });
 
-  it('суперадмином через заголовки стать нельзя, а роль «admin» ничего особого не даёт', async () => {
+  it('роль LMS 1 даёт права суперадминистратора только пока она передаётся', async () => {
+    const user: LmsUser = { id: '151', login: 'lms-super@example.com', role: '1' };
+    expect((await asLms(user, '/me').expect(200)).body).toMatchObject({ isSuperAdmin: true, viaLms: true });
+    await asLms(user, '/users').expect(200);
+    expect((await asLms({ ...user, role: 'editor' }, '/me').expect(200)).body.isSuperAdmin).toBe(false);
+    await asLms({ ...user, role: 'editor' }, '/users').expect(403);
+    expect((await ctx.prisma.user.findUniqueOrThrow({ where: { externalId: 'lms:151' } })).isSuperAdmin).toBe(false);
+  });
+
+  it('роль LMS «admin» сама по себе не даёт прав суперадминистратора', async () => {
     const res = await asLms({ id: '150', login: 'x@example.com', role: 'admin', groups: 'g-main' }, '/me').expect(200);
     expect((res.body as CurrentUser).isSuperAdmin).toBe(false);
     await asLms({ id: '150', login: 'x@example.com', role: 'admin', groups: 'g-main' }, '/users').expect(403);
