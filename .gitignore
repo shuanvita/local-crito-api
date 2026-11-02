@@ -16,4 +16,6 @@ scripts/rucode/pages.json
 apps/api/src/generated/
 
 .claude/
+.codex
 CLAUDE.md
+AGENTS.md

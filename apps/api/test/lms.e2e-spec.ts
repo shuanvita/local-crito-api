@@ -31,7 +31,7 @@ const lmsHeaders = (user: LmsUser, secret = SECRET) => ({
   'X-Cms-User-Login': encodeURIComponent(user.login),
   ...(user.name !== undefined ? { 'X-Cms-User-Name': encodeURIComponent(user.name) } : {}),
   ...(user.role !== undefined ? { 'X-Cms-User-Role': encodeURIComponent(user.role) } : {}),
-  ...(user.groups !== undefined ? { 'X-Cms-User-Groups': encodeURIComponent(user.groups) } : {}),
+  ...(user.groups !== undefined ? { 'X-Cms-User-Projects': user.groups } : {}),
 });
 
 const asLms = (user: LmsUser, path: string, secret?: string) => http.get(path).set(lmsHeaders(user, secret));
@@ -122,7 +122,7 @@ describe('заголовки LMS', () => {
     await asLms({ id: '', login: 'a@b.ru' }, '/me').expect(401);
     await asLms({ id: '1', login: 'не-почта' }, '/me').expect(401);
     // Битая кодировка в том, что решает права (роль, группы, id, почта), это отказ.
-    for (const header of ['X-Cms-User-Role', 'X-Cms-User-Groups', 'X-Cms-User-Id', 'X-Cms-User-Login']) {
+    for (const header of ['X-Cms-User-Role', 'X-Cms-User-Projects', 'X-Cms-User-Id', 'X-Cms-User-Login']) {
       await http
         .get('/me')
         .set({ ...lmsHeaders(manager), [header]: '%E0%A4%A' })

@@ -105,10 +105,10 @@ async function save() {
     </template>
 
     <UFormField
-      label="Группы LMS"
-      description="Участники этих групп попадают в проект. Состав групп правят в LMS. Укажите id группы и нажмите Enter."
+      label="Проекты LMS"
+      description="Пользователи указанных проектов LMS получают доступ к этому проекту согласно настройкам роли. Укажите ID проекта LMS и нажмите Enter."
     >
-      <UInputTags v-model="groups" placeholder="id группы" class="w-full" />
+      <UInputTags v-model="groups" placeholder="ID проекта LMS" class="w-full" />
     </UFormField>
 
     <div class="space-y-3">

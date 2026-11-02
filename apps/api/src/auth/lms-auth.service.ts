@@ -12,7 +12,7 @@ const USER_ID_HEADER = 'x-cms-user-id';
 const LOGIN_HEADER = 'x-cms-user-login';
 const NAME_HEADER = 'x-cms-user-name';
 const ROLE_HEADER = 'x-cms-user-role';
-const GROUPS_HEADER = 'x-cms-user-groups';
+const PROJECTS_HEADER = 'x-cms-user-projects';
 
 const MAX_GROUPS = 100;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
@@ -95,11 +95,11 @@ export class LmsAuthService {
     const login = decodeHeader(headers, LOGIN_HEADER);
     const name = decodeHeader(headers, NAME_HEADER);
     const role = decodeHeader(headers, ROLE_HEADER);
-    const groups = decodeHeader(headers, GROUPS_HEADER);
+    const groups = decodeHeader(headers, PROJECTS_HEADER);
     if (!id || id.length > 128 || !login || login.length > 254 || !EMAIL_PATTERN.test(login)) return null;
-    // Роли и групп может не быть (пользователь без проектов): тогда он войдёт, но не увидит ни одного проекта.
+    // Роли и проектов может не быть: тогда пользователь войдёт, но не получит доступ из LMS.
     if (role === null && headers[ROLE_HEADER] !== undefined) return null;
-    if (groups === null && headers[GROUPS_HEADER] !== undefined) return null;
+    if (groups === null && headers[PROJECTS_HEADER] !== undefined) return null;
     const groupIds = [...new Set((groups ?? '').split(',').map((group) => group.trim()).filter(Boolean))];
     if (groupIds.length > MAX_GROUPS || groupIds.some((group) => group.length > 128)) return null;
     return {

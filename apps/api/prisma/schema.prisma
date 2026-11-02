@@ -44,7 +44,7 @@ model Project {
 model ProjectLmsGroup {
   id        String  @id @default(cuid())
   projectId String
-  /// Id группы из заголовка `X-Cms-User-Groups`.
+  /// ID проекта LMS из заголовка `X-Cms-User-Projects`.
   groupId   String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

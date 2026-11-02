@@ -14,8 +14,8 @@ const emit = defineEmits<{ confirm: [] }>()
   <UModal v-model:open="open" :title="title" :description="description">
     <template #footer>
       <div class="flex w-full justify-end gap-2">
-        <UButton label="Отмена" color="neutral" variant="subtle" @click="open = false" />
-        <UButton :label="confirmLabel" color="error" :loading="loading" @click="emit('confirm')" />
+        <UButton label="Отмена" color="neutral" variant="subtle" @click="$emit('update:open', false)" />
+        <UButton :label="confirmLabel" color="error" :loading="loading" :disabled="loading" @click="emit('confirm')" />
       </div>
     </template>
   </UModal>
